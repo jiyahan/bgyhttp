@@ -14,54 +14,54 @@ extern "C" {
 #include <iostream>
 
 // convention
-#define __HTTP_PROTOCOL_VERSION_MAJOR   0        // 主版本号
-#define __HTTP_PROTOCOL_VERSION_MINOR   1        // 分支版本号
-#define __HTTP_PROTOCOL_VERSION_PATCH   0        // 补丁版本号
-#define __HTTP_CONNECT_TIMEOUT          10              // curl连接超时时间（秒）
-#define __HTTP_TIMEOUT                  60              // curl请求超时时间（秒）
-#define __HTTP_USER_AGENT               "KaoQinJi"      // http头 User-Agent 值
-#define __HTTP_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
-#define __HTTP_SIGN_KEY                 "sign"          // 签名参数 键名
-#define __HTTP_URL_MAX_LENGTH           4096
+#define BGY_PROTOCOL_VERSION_MAJOR   0        // 主版本号
+#define BGY_PROTOCOL_VERSION_MINOR   1        // 分支版本号
+#define BGY_PROTOCOL_VERSION_PATCH   0        // 补丁版本号
+#define BGY_CONNECT_TIMEOUT          10              // curl连接超时时间（秒）
+#define BGY_TIMEOUT                  60              // curl请求超时时间（秒）
+#define BGY_USER_AGENT               "KaoQinJi"      // http头 User-Agent 值
+#define BGY_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
+#define BGY_SIGN_KEY                 "sign"          // 签名参数 键名
+#define BGY_URL_MAX_LENGTH           4096
 
 
-#define __HTTP_STRINGIZE_(var)          #var
-#define __HTTP_STRINGIZE(var)           __HTTP_STRINGIZE_(var)
-#define __HTTP_STRLITERAL_LEN(str)      (sizeof(str) - 1)
+#define BGY_STRINGIZE_(var)          #var
+#define BGY_STRINGIZE(var)           BGY_STRINGIZE_(var)
+#define BGY_STRLITERAL_LEN(str)      (sizeof(str) - 1)
 
 #ifdef NDEBUG
-#   define __HTTP_ERR(...)      ::std::cerr << __FILE__ << ":"                      \
+#   define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                      \
         << __LINE__ << ":" << __FUNCTION__ << "()\t"  << __VA_ARGS__ << std::endl;
-#   define __HTTP_SAY(...)
-#   define __HTTP_DUMP(...)
+#   define BGY_SAY(...)
+#   define BGY_DUMP(...)
 #else
 #   ifdef __linux__
-#       define __HTTP_ERR(...)      ::std::cerr << __FILE__ << ":"                  \
+#       define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                  \
             << __LINE__ << ":" << __FUNCTION__ << "()\tERROR: [\033[32;31;5m"       \
             << __VA_ARGS__ << "\033[0m]" << std::endl;
-#       define __HTTP_SAY(...)      ::std::cout << __FILE__ << ":"                  \
+#       define BGY_SAY(...)      ::std::cout << __FILE__ << ":"                  \
             << __LINE__ << ":" << __FUNCTION__ << "()"                              \
             << "\t[\033[32;49;5m" << __VA_ARGS__ << "\033[0m]" << std::endl;
-#       define __HTTP_DUMP(...)      ::std::cout << __FILE__ << ":"                  \
+#       define BGY_DUMP(...)      ::std::cout << __FILE__ << ":"                  \
             << __LINE__ << ":" << __FUNCTION__ << "()"                               \
             << "\t\033[32;34;5m" << #__VA_ARGS__ << "\033[0m: "                      \
             << "[\033[32;49;5m" << __VA_ARGS__ << "\033[0m]" << std::endl;
 #   else
-#       define __HTTP_ERR(...)      ::std::cerr << __FILE__ << ":"                      \
+#       define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                      \
             << __LINE__ << ":" << __FUNCTION__ << "()\t"  << __VA_ARGS__ << std::endl;
-#       define __HTTP_SAY(...)      ::std::cout << __FILE__ << ":"                  \
+#       define BGY_SAY(...)      ::std::cout << __FILE__ << ":"                  \
             << __LINE__ << ":" << __FUNCTION__ << "()"                              \
             << "\t[" << __VA_ARGS__ << "]" << std::endl;
-#       define __HTTP_DUMP(...)      ::std::cout << __FILE__ << ":"                 \
+#       define BGY_DUMP(...)      ::std::cout << __FILE__ << ":"                 \
             << __LINE__ << ":" << __FUNCTION__ << "()"                              \
             << "\t" << #__VA_ARGS__ << ": [" << __VA_ARGS__ << "]" << std::endl;
 #   endif
 #endif
 
-#define __HTTP_PROTOCOL_VERSION                                                     \
-    __HTTP_STRINGIZE(__HTTP_PROTOCOL_VERSION_MAJOR) "."                             \
-    __HTTP_STRINGIZE(__HTTP_PROTOCOL_VERSION_MINOR) "."                             \
-    __HTTP_STRINGIZE(__HTTP_PROTOCOL_VERSION_PATCH)
+#define BGY_PROTOCOL_VERSION                                                     \
+    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_MAJOR) "."                             \
+    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_MINOR) "."                             \
+    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_PATCH)
 
 
 namespace bgy {
@@ -293,7 +293,7 @@ public:
 
     ~SafeResource()
     {
-        __HTTP_DUMP((uint64_t)src);
+        BGY_DUMP((uint64_t)src);
         if (src != NULL)
         {
             freeResource(src);

@@ -10,7 +10,7 @@
 
 int main(int argc, char* argv[])
 {
-    __HTTP_DUMP(argc);
+    BGY_DUMP(argc);
     if (argc < 2 || argv[1] == std::string("-h") || argv[1] == std::string("--help"))
     {
         std::cerr << "usage: " << std::endl;
@@ -20,6 +20,6 @@ int main(int argc, char* argv[])
     bgy::Client client;
     bgy::Request request(argv[1]);
     bgy::Response response(client.request(request));
-    __HTTP_DUMP(response.code);
+    BGY_DUMP(response.code);
     bgy::Client::destroy();
 }
