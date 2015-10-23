@@ -16,10 +16,10 @@ int main(int argc, char* argv[])
         std::cerr << "usage: " << std::endl;
         std::exit(EXIT_SUCCESS);
     }
-    http::Client::init();
-    http::Client client;
-    http::Request request(argv[1]);
-    http::Response response(client.request(request));
+    bgy::Client::init();
+    bgy::Client client;
+    bgy::Request request(argv[1]);
+    bgy::Response response(client.request(request));
     __HTTP_DUMP(response.code);
-    http::Client::destroy();
+    bgy::Client::destroy();
 }

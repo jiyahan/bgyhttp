@@ -33,10 +33,10 @@ extern "C" {
         }                                                                                   \
     } while (false);
 #endif
-#define __HTTP_CURL_SETOPT(ch, opt, param, ...)  __HTTP_CURL_CALL(curl_easy_setopt(ch, opt, param))
+#define __HTTP_CURL_SETOPT(ch, opt, param, ...)  __HTTP_CURL_CALL(curl_easy_setopt(ch, opt, param), __VA_ARGS__)
 
 
-namespace http {
+namespace bgy {
 
 class Client
 {
@@ -92,7 +92,7 @@ public:
     Response request(SafeCurl& ch, const Request& req) const
     {
         Response resp;
-        if (send(ch, req))
+        if (send(ch, req, resp))
         {
             __HTTP_SAY("send ok");
             int64_t statusCode, headerLength, contentLength;
@@ -103,15 +103,19 @@ public:
             __HTTP_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_LENGTH_DOWNLOAD, &contentLength), return resp);
             resp.code = statusCode;
             resp.contentType = contentType;
+            __HTTP_DUMP(statusCode);
+            __HTTP_DUMP(contentLength);
         }
         if (req.noClean)
         {
             resp.curl.reset(ch.release());
         }
+        __HTTP_DUMP(resp.contentType);
+        __HTTP_DUMP(resp.content.size());
         return resp;
     }
 
-    bool send(SafeCurl& ch, const Request& req) const
+    bool send(SafeCurl& ch, const Request& req, Response& resp) const
     {
         // 特性设置
         __HTTP_CURL_SETOPT(ch.get(), CURLOPT_FOLLOWLOCATION, followLocation, return false);  // 跟随重定向
@@ -137,17 +141,23 @@ public:
             __HTTP_ERR("failed on prepare, http-method: " << req.method);
             return false;
         }
+        // 回调设置
+        __HTTP_CURL_SETOPT(ch.get(), CURLOPT_WRITEDATA, &resp);
+        __HTTP_CURL_SETOPT(ch.get(), CURLOPT_WRITEFUNCTION, &Client::contentHandler);
 
         __HTTP_CURL_CALL(curl_easy_perform(ch.get()), return false);
         return true;
     }
 
-    size_t dataHandler(void* ptr, size_t size, size_t nmember, void* _resp)
+    static size_t contentHandler(void* ptr, size_t size, size_t nmember, void* _resp)
     {
+        __HTTP_DUMP(size);
+        __HTTP_DUMP(nmember);
+        const size_t length = size * nmember;
         Response* resp = static_cast<Response*>(_resp);
-        resp->content.reserve(size * nmember);
-        resp->content.append(reinterpret_cast<char*>(ptr), size);
-        return size;
+        resp->content.reserve(length);
+        resp->content.append(reinterpret_cast<char*>(ptr), length);
+        return length;
     }
 
     SafeCurlSlist prepareHeaders(const Request& req) const
@@ -211,41 +221,6 @@ public:
         *cursor = '\0';
         __HTTP_CURL_SETOPT(ch.get(), CURLOPT_URL, buffer.get(), return false);
         __HTTP_DUMP(buffer.get());
-
-//        std::string url;
-//        std::size_t paramsOffset = req.url.size() + (req.url[req.url.size() - 1] != '?');
-//        std::size_t paramsLength = 0;
-//        {
-//            for (StringPtrPairList::const_iterator it = paramPtrs.begin(); it != paramPtrs.end(); ++it)
-//            {
-//                paramsLength += it->first->size() + 1 + it->second->size();
-//            }
-//            paramsLength += (paramPtrs.size() - 1);
-//            paramsLength -= (req.method != GET);
-//            url.reserve(paramsOffset + paramsLength + 1
-//                + sizeof(__HTTP_SIGN_KEY) + (MD5_DIGEST_LENGTH * 2));
-//        }
-//
-//        url += req.url;
-//        if ((req.url[req.url.size() - 1] != '?'))
-//        {
-//            url += '?';
-//        }
-//
-//        for (StringPairList::const_iterator it = paramPtrs.begin(); it != paramPtrs.end(); ++it)
-//        {
-//            url += it->first;
-//            url += '=';
-//            url += it->second;
-//            url += '&';
-//        }
-//
-//        url += __HTTP_SIGN_KEY;
-//        url += '=';
-//        url += md5Str(url.data() + paramsOffset, paramsLength);
-//        __HTTP_DUMP(url);
-//
-//        __HTTP_CURL_SETOPT(ch.get(), CURLOPT_URL, url.c_str(), return false);
 
         return true;
     }

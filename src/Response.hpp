@@ -9,7 +9,7 @@ extern "C" {
 #include "Aside.hpp"
 
 
-namespace http {
+namespace bgy {
 
 class Response
 {

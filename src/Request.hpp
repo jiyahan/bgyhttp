@@ -6,7 +6,7 @@
 #include <vector>
 #include "Aside.hpp"
 
-namespace http {
+namespace bgy {
 
 class Client;
 
@@ -40,6 +40,12 @@ public:
     Request& setMethod(HttpMethod _method)
     {
         method = _method;
+        return *this;
+    }
+
+    Request& setNoClean(bool _noClean = true)
+    {
+        noClean = _noClean;
         return *this;
     }
 

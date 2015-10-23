@@ -13,21 +13,21 @@ extern "C" {
 #include <string>
 #include <iostream>
 
-
-#define __HTTP_PROTOCOL_VERSION_MAJOR  0        // 主版本号
-#define __HTTP_PROTOCOL_VERSION_MINOR  1        // 分支版本号
-#define __HTTP_PROTOCOL_VERSION_PATCH  0        // 补丁版本号
-#define __HTTP_CONNECT_TIMEOUT  10              // curl连接超时时间（秒）
-#define __HTTP_TIMEOUT          60              // curl请求超时时间（秒）
-#define __HTTP_USER_AGENT       "KaoQinJi"      // http头 User-Agent 值
+// convention
+#define __HTTP_PROTOCOL_VERSION_MAJOR   0        // 主版本号
+#define __HTTP_PROTOCOL_VERSION_MINOR   1        // 分支版本号
+#define __HTTP_PROTOCOL_VERSION_PATCH   0        // 补丁版本号
+#define __HTTP_CONNECT_TIMEOUT          10              // curl连接超时时间（秒）
+#define __HTTP_TIMEOUT                  60              // curl请求超时时间（秒）
+#define __HTTP_USER_AGENT               "KaoQinJi"      // http头 User-Agent 值
 #define __HTTP_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
-#define __HTTP_SIGN_KEY         "sign"          // 签名参数 键名
-#define __HTTP_URL_MAX_LENGTH   4096
+#define __HTTP_SIGN_KEY                 "sign"          // 签名参数 键名
+#define __HTTP_URL_MAX_LENGTH           4096
 
 
-#define __HTTP_STRINGIZE_(var)   #var
-#define __HTTP_STRINGIZE(var)   __HTTP_STRINGIZE_(var)
-#define __HTTP_STRLITERAL_LEN(str)   (sizeof(str) - 1)
+#define __HTTP_STRINGIZE_(var)          #var
+#define __HTTP_STRINGIZE(var)           __HTTP_STRINGIZE_(var)
+#define __HTTP_STRLITERAL_LEN(str)      (sizeof(str) - 1)
 
 #ifdef NDEBUG
 #   define __HTTP_ERR(...)      ::std::cerr << __FILE__ << ":"                      \
@@ -64,7 +64,7 @@ extern "C" {
     __HTTP_STRINGIZE(__HTTP_PROTOCOL_VERSION_PATCH)
 
 
-namespace http {
+namespace bgy {
 
 enum HttpMethod { GET = 1, POST = 2, };
 typedef std::pair<std::string, std::string> StringPair;
