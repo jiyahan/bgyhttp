@@ -164,47 +164,88 @@ public:
         return true;
     }
 
+    // TODO: 要求参数全部是标量，不能是数组==。
     bool prepareGet(SafeCurl& ch, const Request& req) const
     {
-        StringPairList params = req.params;
-        params.push_back(std::make_pair<std::string, std::string>(
-            __HTTP_PROTOCOL_VERSION_KEY, __HTTP_PROTOCOL_VERSION));
-        std::sort(params.begin(), params.end(), StringPairCmper());
-
-        std::string url;
-        std::size_t paramsOffset = req.url.size() + (req.url[req.url.size() - 1] != '?');
-        std::size_t paramsLength = 0;
+        typedef std::vector<StringPtrPair> StringPtrPairList;
+        StringPtrPairList paramPtrs;
+        for (StringPairList::const_iterator it = req.params.begin(); it != req.params.end(); ++it)
         {
-            for (StringPairList::const_iterator it = params.begin(); it != params.end(); ++it)
+            paramPtrs.push_back(std::make_pair(&it->first, &it->second));
+        }
+        std::string versionKey(__HTTP_PROTOCOL_VERSION_KEY), version(__HTTP_PROTOCOL_VERSION);
+        paramPtrs.push_back(std::make_pair(&versionKey, &version));
+        std::sort(paramPtrs.begin(), paramPtrs.end(), StringPtrPairCmper());
+
+        SafeResource<char*, &Aside::freeRawStr> buffer(new char[__HTTP_URL_MAX_LENGTH]);
+        char* cursor = buffer.get();
+        char* end = cursor + __HTTP_URL_MAX_LENGTH;
+        std::memcpy(cursor, req.url.data(), req.url.size());
+        cursor += req.url.size();
+        *cursor++ = req.queryStringBegan ? '&' : '?';
+        char* paramBegin = cursor;
+
+        for (StringPtrPairList::const_iterator it = paramPtrs.begin(); it != paramPtrs.end(); ++it)
+        {
+            cursor = Aside::urlEncode(*it->first, cursor, end);
+            if (cursor == NULL || end - cursor < 2)
             {
-                paramsLength += it->first.size() + 1 + it->second.size();
+                return false;
             }
-            paramsLength += (params.size() - 1);
-            paramsLength -= (req.method != GET);
-            url.reserve(paramsOffset + paramsLength + 1
-                + sizeof(__HTTP_SIGN_KEY) + (MD5_DIGEST_LENGTH * 2));
+            *cursor++ = '=';
+            cursor = Aside::urlEncode(*it->second, cursor, end);
+            if (cursor == NULL || end - cursor < 1)
+            {
+                return false;
+            }
+            *cursor++ = '&';
         }
-
-        url += req.url;
-        if ((req.url[req.url.size() - 1] != '?'))
+        std::string signStr = md5Str(paramBegin, cursor - paramBegin);
+        if (end - cursor < (__HTTP_STRLITERAL_LEN(__HTTP_SIGN_KEY) + 2 + signStr.size()))
         {
-            url += '?';
+            return false;
         }
+        Aside::paste(cursor, __HTTP_SIGN_KEY, __HTTP_STRLITERAL_LEN(__HTTP_SIGN_KEY));
+        *cursor++ = '=';
+        Aside::paste(cursor, signStr.data(), signStr.size());
+        *cursor = '\0';
+        __HTTP_CURL_SETOPT(ch.get(), CURLOPT_URL, buffer.get(), return false);
+        __HTTP_DUMP(buffer.get());
 
-        for (StringPairList::const_iterator it = params.begin(); it != params.end(); ++it)
-        {
-            url += it->first;
-            url += '=';
-            url += it->second;
-            url += '&';
-        }
-
-        url += __HTTP_SIGN_KEY;
-        url += '=';
-        url += md5Str(url.data() + paramsOffset, paramsLength);
-        __HTTP_DUMP(url);
-
-        __HTTP_CURL_SETOPT(ch.get(), CURLOPT_URL, url.c_str(), return false);
+//        std::string url;
+//        std::size_t paramsOffset = req.url.size() + (req.url[req.url.size() - 1] != '?');
+//        std::size_t paramsLength = 0;
+//        {
+//            for (StringPtrPairList::const_iterator it = paramPtrs.begin(); it != paramPtrs.end(); ++it)
+//            {
+//                paramsLength += it->first->size() + 1 + it->second->size();
+//            }
+//            paramsLength += (paramPtrs.size() - 1);
+//            paramsLength -= (req.method != GET);
+//            url.reserve(paramsOffset + paramsLength + 1
+//                + sizeof(__HTTP_SIGN_KEY) + (MD5_DIGEST_LENGTH * 2));
+//        }
+//
+//        url += req.url;
+//        if ((req.url[req.url.size() - 1] != '?'))
+//        {
+//            url += '?';
+//        }
+//
+//        for (StringPairList::const_iterator it = paramPtrs.begin(); it != paramPtrs.end(); ++it)
+//        {
+//            url += it->first;
+//            url += '=';
+//            url += it->second;
+//            url += '&';
+//        }
+//
+//        url += __HTTP_SIGN_KEY;
+//        url += '=';
+//        url += md5Str(url.data() + paramsOffset, paramsLength);
+//        __HTTP_DUMP(url);
+//
+//        __HTTP_CURL_SETOPT(ch.get(), CURLOPT_URL, url.c_str(), return false);
 
         return true;
     }

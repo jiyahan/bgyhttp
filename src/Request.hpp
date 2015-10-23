@@ -15,11 +15,14 @@ class Request
     friend class Client;
 public:
     explicit Request(const std::string& _url, HttpMethod _method = GET):
-        noClean(false), url(_url), method(_method)
+        noClean(false), url(_url), method(_method),
+        queryStringBegan(url.find('?') != std::string::npos)
     {}
 
     Request(const std::string& _url, HttpMethod _method, const StringPairList& _params):
-        noClean(false), url(_url), method(_method), params(_params)
+        noClean(false), url(_url), method(_method),
+        queryStringBegan(url.find('?') != std::string::npos),
+         params(_params)
     {}
 
     Request& addFile(const std::string& file)
@@ -51,6 +54,9 @@ private:
     StringList uploads;
 
     std::string download;       // 下载文件保存路径
+
+public:
+    const bool queryStringBegan;
 
 private:  // non-copyable
     Request(const Request&);

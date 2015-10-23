@@ -3,8 +3,10 @@
 
 extern "C" {
 #include <stdint.h>
+#include <ctype.h>
 #include <curl/curl.h>
 }
+#include <cstring>
 #include <exception>
 #include <algorithm>
 #include <vector>
@@ -20,10 +22,12 @@ extern "C" {
 #define __HTTP_USER_AGENT       "KaoQinJi"      // http头 User-Agent 值
 #define __HTTP_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
 #define __HTTP_SIGN_KEY         "sign"          // 签名参数 键名
+#define __HTTP_URL_MAX_LENGTH   4096
 
 
 #define __HTTP_STRINGIZE_(var)   #var
 #define __HTTP_STRINGIZE(var)   __HTTP_STRINGIZE_(var)
+#define __HTTP_STRLITERAL_LEN(str)   (sizeof(str) - 1)
 
 #ifdef NDEBUG
 #   define __HTTP_ERR(...)      ::std::cerr << __FILE__ << ":"                      \
@@ -64,6 +68,7 @@ namespace http {
 
 enum HttpMethod { GET = 1, POST = 2, };
 typedef std::pair<std::string, std::string> StringPair;
+typedef std::pair<const std::string*, const std::string*> StringPtrPair;
 typedef std::vector<StringPair> StringPairList;
 typedef std::vector<std::string> StringList;
 
@@ -94,6 +99,11 @@ public:
 class Aside
 {
 public:
+    static char hex(uint8_t chr) __attribute__((const))
+    {
+        return chr + ((chr < 10) ? '0' : ('a' - 10));
+    }
+
     static std::string hex(const uint8_t* data, std::size_t length)
     {
         std::string res;
@@ -106,31 +116,109 @@ public:
         return res;
     }
 
-    static char hex(uint8_t c) __attribute__((const))
+    static char hexUpper(uint8_t chr) __attribute__((const))
     {
-        return c < 10 ? ('0' + c) : ('a' + (c - 10));
+        return chr + ((chr < 10) ? '0' : ('A' - 10));
     }
 
-    // 将 curl_easy_setopt() 第三个参数转可视化，不能转的返回特定字符串
-    static const std::string& toVisible(const std::string& val)
+    static char* urlEncode(const std::string& str, char* res, char* end)
     {
-        return val;
+        const uint8_t* data = reinterpret_cast<const uint8_t*>(str.data());
+        const uint8_t* plainBegin = data;
+        for (const uint8_t* dataEnd = data + str.length(); data != dataEnd && res < end; ++data)
+        {
+            if (!(isalnum(*data) ||
+                (*data == '-') ||
+                (*data == '_') ||
+                (*data == '.') ||
+                (*data == '~')))
+            {
+                if (plainBegin < data)
+                {
+                    if (end - res < data - plainBegin)
+                    {
+                        return NULL;
+                    }
+                    Aside::paste(res, plainBegin, data - plainBegin);
+                }
+                plainBegin = data + 1;
+                if (end - res < 3)
+                {
+                    return NULL;
+                }
+                *res++ = '%';
+                *res++ = hexUpper(*data >> 4);
+                *res++ = hexUpper(*data & 0x0f);
+            }
+        }
+        if (plainBegin != reinterpret_cast<const uint8_t*>(str.data()))
+        {
+            if (plainBegin < data)
+            {
+                if (end - res < data - plainBegin)
+                {
+                    return NULL;
+                }
+                Aside::paste(res, plainBegin, data - plainBegin);
+            }
+        }
+        else
+        {
+            if (end - res < str.size())
+            {
+                return NULL;
+            }
+            Aside::paste(res, str.data(), str.size());
+        }
+        return res;
     }
 
-    static const char* toVisible(const char* val)
+    static std::string urlEncode(const std::string& str)
     {
-        return val;
+        std::string res;
+        const uint8_t* data = reinterpret_cast<const uint8_t*>(str.data());
+        const uint8_t* plainBegin = data;
+        for (const uint8_t* end = data + str.length(); data != end; ++data)
+        {
+            if (!(isalnum(*data) ||
+                (*data == '-') ||
+                (*data == '_') ||
+                (*data == '.') ||
+                (*data == '~')))
+            {
+                if (plainBegin < data)
+                {
+                    res.append(plainBegin, data);
+                }
+                plainBegin = data + 1;
+                res += '%';
+                res += hexUpper(*data >> 4);
+                res += hexUpper(*data & 0x0f);
+            }
+        }
+        if (plainBegin != reinterpret_cast<const uint8_t*>(str.data()))
+        {
+            if (plainBegin < data)
+            {
+                res.append(plainBegin, data);
+            }
+        }
+        else
+        {
+            res = str;
+        }
+        return res;
     }
 
-    static int toVisible(int val)
+    static void freeRawStr(char* str)
     {
-        return val;
+        delete[] str;
     }
 
-    template<typename T>
-    static const std::string toVisible(const T& val)
+    static void paste(char*& dest, const void* src, std::size_t len)
     {
-        return std::string("<non-printable>");
+        std::memcpy(dest, src, len);
+        dest += len;
     }
 };
 
@@ -141,6 +229,16 @@ public:
     bool operator()(const StringPair& left, const StringPair& right) const
     {
         return cmper(left.first, right.first);
+    }
+};
+
+class StringPtrPairCmper
+{
+    std::less<std::string> cmper;
+public:
+    bool operator()(const StringPtrPair& left, const StringPtrPair& right) const
+    {
+        return cmper(*left.first, *right.first);
     }
 };
 
