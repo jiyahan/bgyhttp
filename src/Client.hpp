@@ -13,27 +13,27 @@ extern "C" {
 
 
 #ifdef NDEBUG
-#   define BGY_CURL_CALL(call, ...)                                                      \
+#   define _BGY_CURL_CALL(call, ...)                                                         \
     do {                                                                                    \
         if (call != CURLE_OK)                                                               \
         {                                                                                   \
-            BGY_ERR(BGY_STRINGIZE(call));                                             \
+            BGY_ERR(BGY_STRINGIZE(call));                                                   \
             __VA_ARGS__;                                                                    \
         }                                                                                   \
     } while(false);
 #else
-#   define BGY_CURL_CALL(call, ...)                                                      \
+#   define _BGY_CURL_CALL(call, ...)                                                         \
     do {                                                                                    \
         CURLcode code = call;                                                               \
         if (code != CURLE_OK)                                                               \
         {                                                                                   \
-            BGY_ERR(BGY_STRINGIZE(call) << "=" << code                                \
+            BGY_ERR(BGY_STRINGIZE(call) << "=" << code                                      \
                 << ": " << curl_easy_strerror(code));                                       \
             __VA_ARGS__;                                                                    \
         }                                                                                   \
     } while (false);
 #endif
-#define BGY_CURL_SETOPT(ch, opt, param, ...)  BGY_CURL_CALL(curl_easy_setopt(ch, opt, param), __VA_ARGS__)
+#define _BGY_CURL_SETOPT(ch, opt, param, ...)  _BGY_CURL_CALL(curl_easy_setopt(ch, opt, param), __VA_ARGS__)
 
 
 namespace bgy {
@@ -41,7 +41,10 @@ namespace bgy {
 class Client
 {
 private:
-    typedef SafeResource<struct curl_slist*, curl_slist_free_all> SafeCurlSlist;
+    typedef SafePtr<struct curl_slist*, curl_slist_free_all> SafeCurlSlist;
+    typedef std::pair<SafeCurl&, Response&> CurlResponsePair;
+
+    std::string secret;
 
     bool followLocation;            // 是否跟随重定向
     std::time_t connectTimeout;     // 连接超时(秒)
@@ -85,46 +88,56 @@ public:
     Response request(const Request& req) const
     {
         SafeCurl ch(curl_easy_init());
-        BGY_DUMP((uint64_t)ch.get());
         return request(ch, req);
     }
+
+    virtual ~Client() {}
+
+private:
+    class CurlHandlerParam
+    {
+    public:
+        SafeCurl& ch;
+        Response& response;
+        bool headerProcessed, canceled;
+
+        CurlHandlerParam(SafeCurl& _ch, Response& _response):
+            ch(_ch), response(_response),
+            headerProcessed(false), canceled(false)
+        {}
+    };
 
     Response request(SafeCurl& ch, const Request& req) const
     {
         Response resp;
-        if (send(ch, req, resp))
+        if (request(ch, req, resp))
         {
-            BGY_SAY("send ok");
-            int64_t statusCode, headerLength, contentLength;
-            char* contentType = NULL;
-            BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_RESPONSE_CODE, &statusCode), return resp);
-            BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_HEADER_SIZE, &headerLength), return resp);
-            BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_TYPE, &contentType), return resp);
-            BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_LENGTH_DOWNLOAD, &contentLength), return resp);
-            resp.code = statusCode;
-            resp.contentType = contentType;
-            BGY_DUMP(statusCode);
-            BGY_DUMP(contentLength);
+            if (resp.content().size() != resp.contentLength())
+            {
+                resp.setProcessFailed();
+            }
+        }
+        else
+        {
+            resp.setProcessFailed();
         }
         if (req.noClean)
         {
             resp.curl.reset(ch.release());
         }
-        BGY_DUMP(resp.contentType);
-        BGY_DUMP(resp.content.size());
         return resp;
     }
 
-    bool send(SafeCurl& ch, const Request& req, Response& resp) const
+    bool request(SafeCurl& ch, const Request& req, Response& resp) const
     {
         // 特性设置
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_FOLLOWLOCATION, followLocation, return false);  // 跟随重定向
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_CONNECTTIMEOUT, connectTimeout, return false);  // 连接超时
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_TIMEOUT, timeout, return false);  // 请求超时
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_FOLLOWLOCATION, followLocation, return false);  // 跟随重定向
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_CONNECTTIMEOUT, connectTimeout, return false);  // 连接超时
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_TIMEOUT, timeout, return false);  // 请求超时
         // http头设置
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_USERAGENT, userAgent.c_str(), return false);
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_USERAGENT, userAgent.c_str(), return false);
         SafeCurlSlist headers(prepareHeaders(req));
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_HTTPHEADER, headers.get(), return false);
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_HTTPHEADER, headers.get(), return false);
         // 拼参数
         bool prepareRes = false;
         switch (req.method)
@@ -142,39 +155,64 @@ public:
             return false;
         }
         // 回调设置
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_WRITEDATA, &resp);
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_WRITEFUNCTION, &Client::contentHandler);
+        CurlHandlerParam chp(ch, resp);
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_WRITEDATA, &chp);
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_WRITEFUNCTION, &Client::contentHandler);
 
-        BGY_CURL_CALL(curl_easy_perform(ch.get()), return false);
+        _BGY_CURL_CALL(curl_easy_perform(ch.get()), return false);
         return true;
     }
 
-    static size_t contentHandler(void* ptr, size_t size, size_t nmember, void* _resp)
+    static size_t contentHandler(void* ptr, size_t size, size_t nmember, void* _chp)
     {
-        BGY_DUMP(size);
-        BGY_DUMP(nmember);
+        CurlHandlerParam* chp = static_cast<CurlHandlerParam*>(_chp);
+        if (chp->canceled) { return 0; }
+        Response& resp = chp->response;
+
+        if (!chp->headerProcessed)
+        {
+            chp->headerProcessed = true;
+            SafeCurl& ch = chp->ch;
+            int64_t statusCode;
+            _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_RESPONSE_CODE, &statusCode),
+                resp.setProcessFailed(); return 0;);
+            char* contentType = NULL;
+            _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_TYPE, &contentType),
+                resp.setProcessFailed(); return 0; );
+            double contentLength;
+            _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_LENGTH_DOWNLOAD, &contentLength),
+                resp.setProcessFailed(); return 0; );
+            if (contentLength > BGY_RESPONSE_MAX_CONTENT_LENGTH)
+            {
+                chp->canceled = true;
+                return 0;   // 停止后续回调
+            }
+            resp.setStatusCode(statusCode);
+            resp.setContentType(contentType);
+            resp.setContentLength(contentLength);
+            resp._content.reserve(contentLength);
+        }
+
         const size_t length = size * nmember;
-        Response* resp = static_cast<Response*>(_resp);
-        resp->content.reserve(length);
-        resp->content.append(reinterpret_cast<char*>(ptr), length);
+        resp._content.append(static_cast<char*>(ptr), length);
         return length;
     }
 
     SafeCurlSlist prepareHeaders(const Request& req) const
     {
         SafeCurlSlist headers;
-        BGY_DUMP((uint64_t)headers.get());
         headers.reset(curl_slist_append(headers.get(), "Connection: close"));
         return headers;
     }
 
     bool preparePost(SafeCurl& ch, const Request& req) const
     {
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_POST, 1, return false);
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_POST, 1, return false);
+        basename("");
         return true;
     }
 
-    // TODO: 要求参数全部是标量，不能是数组==。
+    // TODO: 要求参数名值全部是标量，不能是数组==。
     bool prepareGet(SafeCurl& ch, const Request& req) const
     {
         typedef std::vector<StringPtrPair> StringPtrPairList;
@@ -187,8 +225,8 @@ public:
         paramPtrs.push_back(std::make_pair(&versionKey, &version));
         std::sort(paramPtrs.begin(), paramPtrs.end(), StringPtrPairCmper());
 
-        SafeResource<char*, &Aside::freeRawStr> buffer(new char[BGY_URL_MAX_LENGTH]);
-        char* cursor = buffer.get();
+        SafePtr<char*, &Aside::freeCharArray> url(new char[BGY_URL_MAX_LENGTH]);
+        char* cursor = url.get();
         char* end = cursor + BGY_URL_MAX_LENGTH;
         std::memcpy(cursor, req.url.data(), req.url.size());
         cursor += req.url.size();
@@ -208,76 +246,47 @@ public:
             {
                 return false;
             }
-            *cursor++ = '&';
+            if (!req.noSign || it != paramPtrs.end())
+            {
+                *cursor++ = '&';
+            }
         }
-        std::string signStr = md5Str(paramBegin, cursor - paramBegin);
-        if (end - cursor < (BGY_STRLITERAL_LEN(BGY_SIGN_KEY) + 2 + signStr.size()))
+
+        if (!req.noSign)
         {
-            return false;
+            if (end - cursor < (BGY_STRLITERAL_LEN(BGY_SIGN_KEY) + 2 + MD5Stream::RESULT_SIZE))
+            {
+                return false;
+            }
+            const int paramLength = cursor - paramBegin - 1;
+            Aside::paste(cursor, BGY_SIGN_KEY, BGY_STRLITERAL_LEN(BGY_SIGN_KEY));
+            *cursor++ = '=';
+            if (!signStr(paramBegin, paramLength, cursor))
+            {
+                return false;
+            }
+            cursor += MD5Stream::RESULT_SIZE;
+            *cursor++ = '\0';
         }
-        Aside::paste(cursor, BGY_SIGN_KEY, BGY_STRLITERAL_LEN(BGY_SIGN_KEY));
-        *cursor++ = '=';
-        Aside::paste(cursor, signStr.data(), signStr.size());
-        *cursor = '\0';
-        BGY_CURL_SETOPT(ch.get(), CURLOPT_URL, buffer.get(), return false);
-        BGY_DUMP(buffer.get());
+        _BGY_CURL_SETOPT(ch.get(), CURLOPT_URL, url.get(), return false);
+        BGY_DUMP(url.get());
 
         return true;
     }
 
-    std::string sign(const Request& req) const
-    {
-        MD5_CTX ctx;
-        MD5_Init(&ctx);
-//        MD5_Update(&ctx, str.data(), str.size());
-        uint8_t digest[MD5_DIGEST_LENGTH];
-        MD5_Final(digest, &ctx);
-        return Aside::hex(digest, sizeof(digest));
-    }
-
-    std::string md5Str(const char* str, std::size_t len) const
+    bool signStr(const char* str, std::size_t len, char* outBegin) const
     {
         BGY_DUMP(std::string(str, len));
-        uint8_t binary[MD5_DIGEST_LENGTH];
-        MD5(reinterpret_cast<const unsigned char*>(str), len, binary);
-        return Aside::hex(binary, sizeof(binary));
+        MD5Stream stream;
+        stream << secret
+            << RawStr(BGY_SIGN_SEPARATER, BGY_STRLITERAL_LEN(BGY_SIGN_SEPARATER))
+            << RawStr(str, len);
+        stream >> outBegin;
+        return stream.good();
     }
-
-    static void init()
-    {
-        static int done = 0;
-        if (__sync_fetch_and_add(&done, 1) == 0)
-        {
-            BGY_DUMP(done);
-            CURLcode code = curl_global_init(CURL_GLOBAL_ALL);
-            if (code != CURLE_OK)
-            {
-                throw Error(code, curl_easy_strerror(code));
-            }
-        }
-        else
-        {
-            __sync_sub_and_fetch(&done, 1);
-        }
-    }
-
-    static void destroy()
-    {
-        static int done = 0;
-        if (__sync_fetch_and_add(&done, 1) == 0)
-        {
-            BGY_DUMP(done);
-            curl_global_cleanup();
-        }
-        else
-        {
-            __sync_sub_and_fetch(&done, 1);
-        }
-    }
-
-    virtual ~Client() {}
 };
 
 }
 
-#undef BGY_CURL_SETOPT
+#undef _BGY_CURL_SETOPT
+#undef _BGY_CURL_CALL

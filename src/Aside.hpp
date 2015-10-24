@@ -2,13 +2,16 @@
 #pragma once
 
 extern "C" {
+#include <unistd.h>
 #include <stdint.h>
-#include <ctype.h>
 #include <curl/curl.h>
+#include <openssl/md5.h>
 }
+#include <cctype>
 #include <cstring>
 #include <exception>
 #include <algorithm>
+#include <utility>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -22,7 +25,9 @@ extern "C" {
 #define BGY_USER_AGENT               "KaoQinJi"      // http头 User-Agent 值
 #define BGY_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
 #define BGY_SIGN_KEY                 "sign"          // 签名参数 键名
-#define BGY_URL_MAX_LENGTH           4096
+#define BGY_URL_MAX_LENGTH           4096       // URL 最大长度
+#define BGY_SIGN_SEPARATER           "|"        // 签名字符片段之间的分隔符
+#define BGY_RESPONSE_MAX_CONTENT_LENGTH     INT_MAX     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
 
 
 #define BGY_STRINGIZE_(var)          #var
@@ -30,37 +35,37 @@ extern "C" {
 #define BGY_STRLITERAL_LEN(str)      (sizeof(str) - 1)
 
 #ifdef NDEBUG
-#   define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                      \
+#   define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                             \
         << __LINE__ << ":" << __FUNCTION__ << "()\t"  << __VA_ARGS__ << std::endl;
 #   define BGY_SAY(...)
 #   define BGY_DUMP(...)
 #else
-#   ifdef __linux__
-#       define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                  \
-            << __LINE__ << ":" << __FUNCTION__ << "()\tERROR: [\033[32;31;5m"       \
+#   if defined(__linux__) || defined(__unix__) || defined(__APPLE__)
+#       define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                         \
+            << __LINE__ << ":" << __FUNCTION__ << "()\tERROR: [\033[32;31;5m"           \
             << __VA_ARGS__ << "\033[0m]" << std::endl;
-#       define BGY_SAY(...)      ::std::cout << __FILE__ << ":"                  \
-            << __LINE__ << ":" << __FUNCTION__ << "()"                              \
+#       define BGY_SAY(...)      ::std::cout << __FILE__ << ":"                         \
+            << __LINE__ << ":" << __FUNCTION__ << "()"                                  \
             << "\t[\033[32;49;5m" << __VA_ARGS__ << "\033[0m]" << std::endl;
-#       define BGY_DUMP(...)      ::std::cout << __FILE__ << ":"                  \
-            << __LINE__ << ":" << __FUNCTION__ << "()"                               \
-            << "\t\033[32;34;5m" << #__VA_ARGS__ << "\033[0m: "                      \
+#       define BGY_DUMP(...)      ::std::cout << __FILE__ << ":"                        \
+            << __LINE__ << ":" << __FUNCTION__ << "()"                                  \
+            << "\t\033[32;34;5m" << #__VA_ARGS__ << "\033[0m: "                         \
             << "[\033[32;49;5m" << __VA_ARGS__ << "\033[0m]" << std::endl;
 #   else
-#       define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                      \
+#       define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                         \
             << __LINE__ << ":" << __FUNCTION__ << "()\t"  << __VA_ARGS__ << std::endl;
-#       define BGY_SAY(...)      ::std::cout << __FILE__ << ":"                  \
-            << __LINE__ << ":" << __FUNCTION__ << "()"                              \
+#       define BGY_SAY(...)      ::std::cout << __FILE__ << ":"                         \
+            << __LINE__ << ":" << __FUNCTION__ << "()"                                  \
             << "\t[" << __VA_ARGS__ << "]" << std::endl;
-#       define BGY_DUMP(...)      ::std::cout << __FILE__ << ":"                 \
-            << __LINE__ << ":" << __FUNCTION__ << "()"                              \
+#       define BGY_DUMP(...)      ::std::cout << __FILE__ << ":"                        \
+            << __LINE__ << ":" << __FUNCTION__ << "()"                                  \
             << "\t" << #__VA_ARGS__ << ": [" << __VA_ARGS__ << "]" << std::endl;
 #   endif
 #endif
 
-#define BGY_PROTOCOL_VERSION                                                     \
-    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_MAJOR) "."                             \
-    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_MINOR) "."                             \
+#define BGY_PROTOCOL_VERSION                                                            \
+    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_MAJOR) "."                                       \
+    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_MINOR) "."                                       \
     BGY_STRINGIZE(BGY_PROTOCOL_VERSION_PATCH)
 
 
@@ -71,29 +76,6 @@ typedef std::pair<std::string, std::string> StringPair;
 typedef std::pair<const std::string*, const std::string*> StringPtrPair;
 typedef std::vector<StringPair> StringPairList;
 typedef std::vector<std::string> StringList;
-
-
-class Error:
-    public std::exception
-{
-private:
-    int32_t _code;
-    const std::string& message;
-public:
-    Error(int32_t __code, const std::string& _message):
-        exception(), _code(__code), message(_message)
-    {}
-
-    const char* what() const _GLIBCXX_USE_NOEXCEPT
-    {
-        return message.c_str();
-    }
-
-    const int32_t code() const
-    {
-        return _code;
-    }
-};
 
 
 class Aside
@@ -107,13 +89,31 @@ public:
     static std::string hex(const uint8_t* data, std::size_t length)
     {
         std::string res;
-        res.reserve(length << 1);
-        for (const uint8_t* end = data + length; data != end; ++data)
-        {
-            res += hex(*data >> 4);
-            res += hex(*data & 0x0f);
-        }
+        res.resize(length << 1);
+        hex(data, length, res.begin(), res.end());
         return res;
+    }
+
+    template<typename It>
+    static bool hex(const uint8_t* data, std::size_t length, It begin, const It end)
+    {
+        if (end - begin <= (length << 1))
+        {
+            return false;
+        }
+        return hex(data, length, begin);
+    }
+
+    // NOTE: 外部保证 begin 足够长，否则溢出。
+    template<typename It>
+    static bool hex(const uint8_t* data, std::size_t length, It begin)
+    {
+        for (const uint8_t* dataEnd = data + length; data != dataEnd; ++data)
+        {
+            *begin++ = hex(*data >> 4);
+            *begin++ = hex(*data & 0x0f);
+        }
+        return true;
     }
 
     static char hexUpper(uint8_t chr) __attribute__((const))
@@ -121,13 +121,40 @@ public:
         return chr + ((chr < 10) ? '0' : ('A' - 10));
     }
 
-    static char* urlEncode(const std::string& str, char* res, char* end)
+    static bool startsWith(const std::string& str, const char* prefix, std::size_t prefixLen)
+    {
+        return str.size() >= prefixLen && startsWith(str.c_str(), prefix, prefixLen);
+    }
+
+    static bool startsWith(const char* str, const char* prefix, std::size_t prefixLen)
+    {
+        return std::strncmp(str, prefix, prefixLen) == 0;
+    }
+
+    static std::string toLowerCase(const std::string& str)
+    {
+        std::string res;
+        res.resize(str.size());
+        std::transform(str.begin(), str.end(), res.begin(), tolower);
+        return res;
+    }
+
+    static std::string toLowerCase(const char* str, size_t len)
+    {
+        std::string res;
+        res.resize(len);
+        std::transform(str, str + len, res.begin(), tolower);
+        return res;
+    }
+
+    // urlencode(str) => res[0, n]; return res+n; 保证不会越过end，越界前返回 NULL.
+    static char* urlEncode(const std::string& str, char* res, const char* const end)
     {
         const uint8_t* data = reinterpret_cast<const uint8_t*>(str.data());
         const uint8_t* plainBegin = data;
         for (const uint8_t* dataEnd = data + str.length(); data != dataEnd && res < end; ++data)
         {
-            if (!(isalnum(*data) ||
+            if (!(std::isalnum(*data) ||
                 (*data == '-') ||
                 (*data == '_') ||
                 (*data == '.') ||
@@ -180,7 +207,7 @@ public:
         const uint8_t* plainBegin = data;
         for (const uint8_t* end = data + str.length(); data != end; ++data)
         {
-            if (!(isalnum(*data) ||
+            if (!(std::isalnum(*data) ||
                 (*data == '-') ||
                 (*data == '_') ||
                 (*data == '.') ||
@@ -210,7 +237,7 @@ public:
         return res;
     }
 
-    static void freeRawStr(char* str)
+    static void freeCharArray(char* str)
     {
         delete[] str;
     }
@@ -222,6 +249,7 @@ public:
     }
 };
 
+
 class StringPairCmper
 {
     std::less<std::string> cmper;
@@ -231,6 +259,7 @@ public:
         return cmper(left.first, right.first);
     }
 };
+
 
 class StringPtrPairCmper
 {
@@ -242,70 +271,264 @@ public:
     }
 };
 
+
 // 用于提供异常安全保证
-template<typename Resource, void (*freeResource) (Resource)>
-class SafeResource
+template<typename PtrType, void (*freeResourceFunc) (PtrType)>
+class SafePtr
 {
 public:
-    typedef Resource ResourceType;
-
-    SafeResource():
+    SafePtr():
         src(NULL)
     {}
 
-    explicit SafeResource(ResourceType _src):
+    explicit SafePtr(PtrType _src):
         src(_src)
     {}
 
-    Resource get() const
+    PtrType get() const
     {
         return src;
     }
 
-    void reset(Resource _src)
+    void reset(PtrType _src)
     {
         src = _src;
     }
 
-    Resource release()
+    PtrType release()
     {
-        Resource ret = src;
+        PtrType ret = src;
         src = NULL;
         return ret;
     }
 
     // NOTE: RVO-only copyable. Be careful...
-    SafeResource(const SafeResource& other):
+    SafePtr(const SafePtr& other):
         src(other.src)
     {}
 
     // RVO-only copyable
-    SafeResource(SafeResource& other):
+    SafePtr(SafePtr& other):
         src(other.release())
     {}
 
     // RVO-only copyable
-    SafeResource& operator=(SafeResource& other)
+    SafePtr& operator=(SafePtr& other)
     {
         reset(other.release());
         return *this;
     }
 
-    ~SafeResource()
+    ~SafePtr()
     {
-        BGY_DUMP((uint64_t)src);
         if (src != NULL)
         {
-            freeResource(src);
+            freeResourceFunc(src);
             src = NULL;
         }
     }
 
 private:
-    ResourceType src;
+    PtrType src;
 };
 
-typedef SafeResource<CURL*, curl_easy_cleanup> SafeCurl;
+typedef SafePtr<CURL*, curl_easy_cleanup> SafeCurl;
+
+
+// generic exception with an error code inside.
+class Error:
+    public std::exception
+{
+private:
+    int32_t _code;
+    const std::string message;
+public:
+    Error(int32_t __code, const std::string& _message):
+        exception(), _code(__code), message(_message)
+    {}
+
+    virtual const char* what() const _GLIBCXX_USE_NOEXCEPT
+    {
+        return message.c_str();
+    }
+
+    const int32_t code() const
+    {
+        return _code;
+    }
+
+    virtual ~Error() _GLIBCXX_USE_NOEXCEPT {}
+};
+
+
+class CurlScope
+{
+public:
+    CurlScope()
+    {
+        init();
+    }
+
+    ~CurlScope()
+    {
+        destroy();
+    }
+
+private:
+    static void init()
+    {
+        static int done = 0;
+        static bool check = false;
+        if (__sync_fetch_and_add(&done, 1) == 0)
+        {
+            CURLcode code = curl_global_init(CURL_GLOBAL_ALL);
+            if (code == CURLE_OK)
+            {
+                check = true;
+            }
+            else
+            {
+                throw Error(code, curl_easy_strerror(code));
+            }
+        }
+        else
+        {
+            __sync_sub_and_fetch(&done, 1);
+            while (!check)
+            {
+                usleep(20);
+            }
+        }
+    }
+
+    static void destroy()
+    {
+        static int done = 0;
+        static bool check = false;
+        if (__sync_fetch_and_add(&done, 1) == 0)
+        {
+            curl_global_cleanup();
+            check = true;
+        }
+        else
+        {
+            __sync_sub_and_fetch(&done, 1);
+            while (!check)
+            {
+                usleep(20);
+            }
+        }
+    }
+};
+
+
+class MD5Stream
+{
+    friend MD5Stream& operator>>(MD5Stream&, char*);
+    friend MD5Stream& operator>>(MD5Stream&, std::string&);
+private:
+    MD5_CTX ctx;
+    bool finished;
+    bool ok;
+
+public:
+    enum { RESULT_SIZE = MD5_DIGEST_LENGTH << 1 };
+
+    MD5Stream():
+        finished(false), ok(true)
+    {
+        MD5_Init(&ctx);
+    }
+
+    const std::string hex()
+    {
+        if (finished) { return std::string(); }
+        uint8_t binary[MD5_DIGEST_LENGTH];
+        MD5_Final(binary, &ctx);
+        finished = true;
+        return Aside::hex(binary, sizeof(binary));
+    }
+
+    template<typename It>
+    const bool hex(It begin, const It end)
+    {
+        if (finished) { return false; }
+        uint8_t binary[MD5_DIGEST_LENGTH];
+        MD5_Final(binary, &ctx);
+        finished = true;
+        return Aside::hex(binary, sizeof(binary), begin, end);
+    }
+
+    // NOTE: 外部保证 begin 足够长，否则溢出。
+    template<typename It>
+    const bool hex(It begin)
+    {
+        if (finished) { return false; }
+        uint8_t binary[MD5_DIGEST_LENGTH];
+        MD5_Final(binary, &ctx);
+        finished = true;
+        return Aside::hex(binary, sizeof(binary), begin);
+    }
+
+    MD5Stream& append(const char* data, std::size_t len)
+    {
+        if (finished) { ok = false; }
+        MD5_Update(&ctx, data, len);
+        return *this;
+    }
+
+    bool good() const
+    {
+        return ok;
+    }
+
+    ~MD5Stream()
+    {
+        if (!finished)
+        {
+            uint8_t binary[MD5_DIGEST_LENGTH];
+            MD5_Final(binary, &ctx);
+        }
+    }
+};
+
+MD5Stream& operator<<(MD5Stream& stream, const std::string& data)
+{
+    stream.append(data.data(), data.size());
+    return stream;
+}
+
+MD5Stream& operator<<(MD5Stream& stream, const char* data)
+{
+    stream.append(data, std::strlen(data));
+    return stream;
+}
+
+typedef std::pair<const char*, size_t> RawStr;
+MD5Stream& operator<<(MD5Stream& stream, const RawStr& str)
+{
+    stream.append(str.first, str.second);
+    return stream;
+}
+
+MD5Stream& operator<<(MD5Stream& stream, const char data)
+{
+    stream.append(&data, sizeof(char));
+    return stream;
+}
+
+MD5Stream& operator>>(MD5Stream& stream, std::string& str)
+{
+    stream.ok = stream.hex(str.begin(), str.end());
+    return stream;
+}
+
+// NOTE: 外部保证 begin 足够长，否则溢出。
+MD5Stream& operator>>(MD5Stream& stream, char* str)
+{
+    stream.ok = stream.hex(str);
+    return stream;
+}
 
 
 namespace {
