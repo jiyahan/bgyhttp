@@ -9,6 +9,7 @@ extern "C" {
 }
 #include <cctype>
 #include <cstring>
+#include <cstdio>
 #include <exception>
 #include <algorithm>
 #include <utility>
@@ -21,13 +22,14 @@ extern "C" {
 #define BGY_PROTOCOL_VERSION_MINOR   1        // 分支版本号
 #define BGY_PROTOCOL_VERSION_PATCH   0        // 补丁版本号
 #define BGY_CONNECT_TIMEOUT          10              // curl连接超时时间（秒）
-#define BGY_TIMEOUT                  60              // curl请求超时时间（秒）
+#define BGY_REQUEST_TIMEOUT                  60              // curl请求超时时间（秒）
 #define BGY_USER_AGENT               "KaoQinJi"      // http头 User-Agent 值
 #define BGY_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
-#define BGY_SIGN_KEY                 "sign"          // 签名参数 键名
+#define BGY_SIGN_KEY                 "sign"     // 签名参数 键名
 #define BGY_URL_MAX_LENGTH           4096       // URL 最大长度
-#define BGY_SIGN_SEPARATER           "|"        // 签名字符片段之间的分隔符
+#define BGY_SIGN_HYPHEN              "|"        // 签名字符片段连接符
 #define BGY_RESPONSE_MAX_CONTENT_LENGTH     INT_MAX     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
+#define BGY_FREAD_BUFFER_SIZE        4096       // 读文件时 buffer 字节数（NOTE：栈上分配）
 
 
 #define BGY_STRINGIZE_(var)          #var
@@ -78,6 +80,77 @@ typedef std::vector<StringPair> StringPairList;
 typedef std::vector<std::string> StringList;
 
 
+// 用于提供异常安全保证
+template<typename PtrType, void (*freeResourceFunc) (PtrType)>
+class SafePtr
+{
+public:
+    SafePtr():
+        src(NULL)
+    {}
+
+    explicit SafePtr(PtrType _src):
+        src(_src)
+    {}
+
+    PtrType get() const
+    {
+        return src;
+    }
+
+    PtrType& getRef()
+    {
+        return src;
+    }
+
+    void reset(PtrType _src)
+    {
+        src = _src;
+    }
+
+    PtrType release()
+    {
+        PtrType ret = src;
+        src = NULL;
+        return ret;
+    }
+
+    // NOTE: RVO-only copyable. Be careful...
+    SafePtr(const SafePtr& other):
+        src(other.src)
+    {}
+
+    // RVO-only copyable
+    SafePtr(SafePtr& other):
+        src(other.release())
+    {}
+
+    // RVO-only copyable
+    SafePtr& operator=(SafePtr& other)
+    {
+        reset(other.release());
+        return *this;
+    }
+
+    ~SafePtr()
+    {
+        if (src != NULL)
+        {
+//            freeResourceFunc(src);
+//            src = NULL;
+        }
+    }
+
+private:
+    PtrType src;
+};
+
+typedef SafePtr<CURL*, curl_easy_cleanup> SafeCurl;
+
+
+typedef std::pair<const char*, size_t> RawStr;
+
+
 class Aside
 {
 public:
@@ -97,7 +170,7 @@ public:
     template<typename It>
     static bool hex(const uint8_t* data, std::size_t length, It begin, const It end)
     {
-        if (end - begin <= (length << 1))
+        if (end - begin < (length << 1))
         {
             return false;
         }
@@ -237,6 +310,11 @@ public:
         return res;
     }
 
+    static void freeFile(std::FILE* fp)
+    {
+        std::fclose(fp);
+    }
+
     static void freeCharArray(char* str)
     {
         delete[] str;
@@ -250,17 +328,6 @@ public:
 };
 
 
-class StringPairCmper
-{
-    std::less<std::string> cmper;
-public:
-    bool operator()(const StringPair& left, const StringPair& right) const
-    {
-        return cmper(left.first, right.first);
-    }
-};
-
-
 class StringPtrPairCmper
 {
     std::less<std::string> cmper;
@@ -270,69 +337,6 @@ public:
         return cmper(*left.first, *right.first);
     }
 };
-
-
-// 用于提供异常安全保证
-template<typename PtrType, void (*freeResourceFunc) (PtrType)>
-class SafePtr
-{
-public:
-    SafePtr():
-        src(NULL)
-    {}
-
-    explicit SafePtr(PtrType _src):
-        src(_src)
-    {}
-
-    PtrType get() const
-    {
-        return src;
-    }
-
-    void reset(PtrType _src)
-    {
-        src = _src;
-    }
-
-    PtrType release()
-    {
-        PtrType ret = src;
-        src = NULL;
-        return ret;
-    }
-
-    // NOTE: RVO-only copyable. Be careful...
-    SafePtr(const SafePtr& other):
-        src(other.src)
-    {}
-
-    // RVO-only copyable
-    SafePtr(SafePtr& other):
-        src(other.release())
-    {}
-
-    // RVO-only copyable
-    SafePtr& operator=(SafePtr& other)
-    {
-        reset(other.release());
-        return *this;
-    }
-
-    ~SafePtr()
-    {
-        if (src != NULL)
-        {
-            freeResourceFunc(src);
-            src = NULL;
-        }
-    }
-
-private:
-    PtrType src;
-};
-
-typedef SafePtr<CURL*, curl_easy_cleanup> SafeCurl;
 
 
 // generic exception with an error code inside.
@@ -473,13 +477,34 @@ public:
     MD5Stream& append(const char* data, std::size_t len)
     {
         if (finished) { ok = false; }
-        MD5_Update(&ctx, data, len);
+        if (len)
+        {
+            MD5_Update(&ctx, data, len);
+        }
         return *this;
     }
 
     bool good() const
     {
         return ok;
+    }
+
+    static std::string md5File(const char* file)
+    {
+        std::string res;
+        SafePtr<std::FILE*, &Aside::freeFile> fp(std::fopen(file, "rb"));
+        if (fp.get())
+        {
+            MD5Stream stream;
+            while (!feof(fp.get()))
+            {
+                char buffer[BGY_FREAD_BUFFER_SIZE];
+                std::size_t read = std::fread(buffer, 1, sizeof(buffer), fp.get());
+                stream.append(buffer, read);
+            }
+            stream >> res;
+        }
+        return res;
     }
 
     ~MD5Stream()
@@ -504,7 +529,6 @@ MD5Stream& operator<<(MD5Stream& stream, const char* data)
     return stream;
 }
 
-typedef std::pair<const char*, size_t> RawStr;
 MD5Stream& operator<<(MD5Stream& stream, const RawStr& str)
 {
     stream.append(str.first, str.second);
@@ -519,6 +543,10 @@ MD5Stream& operator<<(MD5Stream& stream, const char data)
 
 MD5Stream& operator>>(MD5Stream& stream, std::string& str)
 {
+    if (str.empty())
+    {
+        str.resize(MD5Stream::RESULT_SIZE);
+    }
     stream.ok = stream.hex(str.begin(), str.end());
     return stream;
 }

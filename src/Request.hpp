@@ -25,9 +25,21 @@ public:
         queryStringBegan(url.find('?') != url.npos)
     {}
 
-    Request& addFile(const std::string& file)
+    Request(const std::string& _url, const StringPairList& _params, const StringPairList& _uploads):
+        noClean(false), url(_url), method(POST),
+        params(_params), uploads(_uploads), noSign(false),
+        queryStringBegan(url.find('?') != url.npos)
+    {}
+
+    Request& addParam(const std::string& key, const std::string& value)
     {
-        uploads.push_back(file);
+        params.push_back(std::make_pair(key, value));
+        return *this;
+    }
+
+    Request& addFile(const std::string& key, const std::string& path)
+    {
+        uploads.push_back(std::make_pair(key, path));
         if (method == GET)
         {
             setMethod(POST);
@@ -70,7 +82,7 @@ private:
     std::string url;
     HttpMethod method;
     StringPairList headers, params;
-    StringList uploads;
+    StringPairList uploads;
     bool noSign;
 
     std::string download;       // 下载文件保存路径

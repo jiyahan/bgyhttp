@@ -82,10 +82,15 @@ public:
         return lowerContentType;
     }
 
-    // Content-Length: 值
-    std::size_t contentLength() const
+    // Content-Length: 值。 NOTE: 可能是 -1
+    int64_t contentLength() const
     {
         return _contentLength;
+    }
+
+    bool contentLengthSpecified() const
+    {
+        return _contentLength >= 0;
     }
 
     const std::string& content() const
@@ -128,13 +133,22 @@ private:
     void setContentLength(std::size_t __contentLength)
     {
         _contentLength = __contentLength;
+        if (_contentLength > 0)
+        {
+            _content.reserve(_contentLength);
+        }
+    }
+
+    void appendContent(char* str, std::size_t length)
+    {
+        _content.append(str, length);
     }
 
 private:
     bool processFailed;         // 是否处理出错
     int16_t _statusCode;        // HTTP Status Code
     std::string lowerContentType;   // 转小写后的 Content-Type: 值
-    std::size_t _contentLength; // Content-Length: 值
+    int64_t _contentLength; // Content-Length: 值。NOTE： 可能会是 -1
     std::string _content;       // NOTE: 下载文件等情况 中间可能包含 '\0' 字符。
 
     bool isUtf8(const std::string& _charset) const
