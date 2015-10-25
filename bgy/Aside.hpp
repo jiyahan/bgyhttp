@@ -3,10 +3,14 @@
 
 #include "predef.hpp"
 extern "C" {
-#include <unistd.h>
+#ifdef __unix__
+#   include <unistd.h>
+#elif defined(__WIN32__)
+#   include <windows.h>
+#endif
 #include <stdint.h>
-#include <curl/curl.h>
 #include <openssl/md5.h>
+#include <curl/curl.h>
 }
 #include <cctype>
 #include <cstring>
@@ -349,7 +353,11 @@ private:
             __sync_sub_and_fetch(&done, 1);
             while (!check)
             {
+#ifdef __unix__
                 usleep(20);
+#elif defined(__WIN32__)
+                Sleep(1);
+#endif
             }
         }
     }
@@ -368,7 +376,11 @@ private:
             __sync_sub_and_fetch(&done, 1);
             while (!check)
             {
+#ifdef __unix__
                 usleep(20);
+#elif defined(__WIN32__)
+                Sleep(1);
+#endif
             }
         }
     }

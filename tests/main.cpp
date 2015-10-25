@@ -227,8 +227,8 @@ void prepare(int argc, char* argv[])
             std::fwrite(content, sizeof(*content), sizeof(content), fp);
             std::fflush(fp);
         }
-#endif
     }
+#endif
 }
 
 #undef _FILE_TXT

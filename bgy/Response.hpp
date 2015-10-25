@@ -1,10 +1,8 @@
 
 #pragma once
 
-extern "C" {
-#include <cstring>
-}
 #include <cctype>
+#include <cstring>
 #include <string>
 #include <vector>
 #include "Aside.hpp"

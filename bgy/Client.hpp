@@ -1,8 +1,7 @@
 
 #pragma once
+
 extern "C" {
-#include <unistd.h>
-#include <openssl/md5.h>
 #include <curl/curl.h>
 }
 #include <cassert>
