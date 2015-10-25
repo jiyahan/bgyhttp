@@ -16,7 +16,7 @@ extern "C" {
 #ifdef NDEBUG
 #   define _BGY_CURL_CALL(call, ...)                                                        \
     do {                                                                                    \
-        if (call != CURLE_OK)                                                               \
+        if (BGY_UNLIKELY(call != CURLE_OK))                                                               \
         {                                                                                   \
             BGY_ERR(BGY_STRINGIZE(call));                                                   \
             __VA_ARGS__;                                                                    \
@@ -26,7 +26,7 @@ extern "C" {
 #   define _BGY_CURL_CALL(call, ...)                                                        \
     do {                                                                                    \
         CURLcode code = call;                                                               \
-        if (code != CURLE_OK)                                                               \
+        if (BGY_UNLIKELY(code != CURLE_OK))                                                               \
         {                                                                                   \
             BGY_ERR(BGY_STRINGIZE(call) << "=" << code                                      \
                 << ": " << curl_easy_strerror(code));                                       \
@@ -212,22 +212,22 @@ private:
 
         {
             MD5Stream stream;
-            if (!req.noSign)
+            if (BGY_LIKELY(!req.noSign))
             {
                 stream << secret << signHyphen << userAgent << signHyphen;
             }
             for (StrPtrPairList::const_iterator it = paramPtrs.begin(),
                 lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
             {
-                if (curl_formadd(&post.getRef(), &last.getRef(),
+                if (BGY_UNLIKELY(curl_formadd(&post.ref(), &last.ref(),
                     CURLFORM_PTRNAME, it->first->c_str(),
                     CURLFORM_PTRCONTENTS, it->second->c_str(),
-                    CURLFORM_END) != CURL_FORMADD_OK)
+                    CURLFORM_END) != CURL_FORMADD_OK))
                 {
                     BGY_ERR("failed no curl_formadd()");
                     return false;
                 }
-                if (!req.noSign)
+                if (BGY_LIKELY(!req.noSign))
                 {
                     stream << *it->first << '=' << *it->second;
                     if (it != lastIt)
@@ -236,7 +236,7 @@ private:
                     }
                 }
             }
-            if (!req.noSign)
+            if (BGY_LIKELY(!req.noSign))
             {
                 std::string paramSign;
                 stream >> paramSign;
@@ -259,18 +259,18 @@ private:
                 signs.push_back(fileSign);
             }
 
-            if (curl_formadd(&post.getRef(), &last.getRef(),
+            if (BGY_UNLIKELY(curl_formadd(&post.ref(), &last.ref(),
                 CURLFORM_PTRNAME, it->first.c_str(),
                 CURLFORM_FILE, it->second.c_str(),
                 CURLFORM_FILENAME, fileKeyNames.rbegin()->second,
-                CURLFORM_END) != CURL_FORMADD_OK)
+                CURLFORM_END) != CURL_FORMADD_OK))
             {
                 BGY_ERR("failed no curl_formadd()");
                 return false;
             }
         }
 
-        if (!req.noSign)
+        if (BGY_LIKELY(!req.noSign))
         {
             std::sort(fileKeyNames.begin(), fileKeyNames.end(), StrPtrPairCmper<const char*>());
 
@@ -303,7 +303,7 @@ private:
                 gather >> sign;
             }
 
-            if (curl_formadd(&post.getRef(), &last.getRef(),
+            if (curl_formadd(&post.ref(), &last.ref(),
                 CURLFORM_PTRNAME, signKey.c_str(),
                 CURLFORM_COPYCONTENTS, sign.c_str(),
                 CURLFORM_END) != CURL_FORMADD_OK)
@@ -325,7 +325,7 @@ private:
         bool ok = true;
         SafeCharArray url(fillParams(req, 0, ok));
         BGY_DUMP(url.get());
-        if (!ok) { return false; }
+        if (BGY_UNLIKELY(!ok)) { return false; }
         _BGY_CURL_SETOPT(ch.get(), CURLOPT_URL, req.url.c_str(), return false);
         _BGY_CURL_SETOPT(ch.get(), CURLOPT_POST, 1, return false);
         _BGY_CURL_SETOPT(ch.get(), CURLOPT_POSTFIELDS, url.get(), return false);
@@ -361,7 +361,7 @@ private:
         cursor += offset;
 
         MD5Stream stream;
-        if (!req.noSign)
+        if (BGY_LIKELY(!req.noSign))
         {
             stream << secret << signHyphen << userAgent << signHyphen;
         }
@@ -369,15 +369,15 @@ private:
             lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
         {
             cursor = Aside::urlEncode(*it->first, cursor, end);
-            if (cursor == NULL || end - cursor < 2) { ok = false; return qs; }
+            if (BGY_UNLIKELY(cursor == NULL || end - cursor < 2)) { ok = false; return qs; }
             *cursor++ = '=';
             cursor = Aside::urlEncode(*it->second, cursor, end);
             if (!req.noSign || it != lastIt)
             {
-                if (cursor == NULL) { ok = false; return qs; }
+                if (BGY_UNLIKELY(cursor == NULL)) { ok = false; return qs; }
                 *cursor++ = '&';
             }
-            if (!req.noSign)
+            if (BGY_LIKELY(!req.noSign))
             {
                 stream << *it->first << '=' << *it->second;
                 if (it != lastIt)
@@ -387,7 +387,7 @@ private:
             }
         }
 
-        if (!req.noSign)
+        if (BGY_LIKELY(!req.noSign))
         {
             if (cursor == NULL || end - cursor < static_cast<int64_t>(signKey.size() + 2 + MD5Stream::RESULT_SIZE))
             {
@@ -406,7 +406,7 @@ private:
     static size_t contentHandler(void* ptr, size_t size, size_t nmember, void* _chp)
     {
         CurlHandlerParam* chp = static_cast<CurlHandlerParam*>(_chp);
-        if (chp->canceled) { return 0; }
+        if (BGY_UNLIKELY(chp->canceled)) { return 0; }
         Response& resp = chp->response;
 
         if (!chp->headerProcessed)
@@ -443,7 +443,7 @@ private:
         std::size_t size = paramPtrs.size() * 2;    // = & 个数 + 结尾的 0
         if (sign)
         {
-            size += BGY_STRLITERAL_LEN(BGY_SIGN_KEY) * 3 + MD5Stream::RESULT_SIZE + 2;
+            size += signKey.size() * 3 + MD5Stream::RESULT_SIZE + 2;
         }
         for (StrPtrPairList::const_iterator it = paramPtrs.begin(); it != paramPtrs.end(); ++it)
         {
@@ -463,7 +463,7 @@ private:
         double contentLength = 0;
         _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_LENGTH_DOWNLOAD, &contentLength),
             resp.setProcessFailed(); return false;);
-        if (resp.contentLengthSpecified() && contentLength > BGY_RESPONSE_MAX_CONTENT_LENGTH)
+        if (contentLength > BGY_RESPONSE_MAX_CONTENT_LENGTH && resp.contentLengthSpecified())
         {
             BGY_ERR("bad Content-Length: " << contentLength);
             return false;   // 取消后续回调

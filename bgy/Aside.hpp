@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "predef.hpp"
 extern "C" {
 #include <unistd.h>
 #include <stdint.h>
@@ -16,62 +17,6 @@ extern "C" {
 #include <vector>
 #include <string>
 #include <iostream>
-
-// 签名用的密钥，与服务器端保持一致，每台设备都不一样。
-#define BGY_SECRET                   "FJDFf*e^fegffdh&^gfbvoi&*jf|{{kdm(9"
-
-// convention
-#define BGY_PROTOCOL_VERSION_MAJOR   0        // 主版本号
-#define BGY_PROTOCOL_VERSION_MINOR   1        // 分支版本号
-#define BGY_PROTOCOL_VERSION_PATCH   0        // 补丁版本号
-#define BGY_CONNECT_TIMEOUT          10              // curl连接超时时间（秒）
-#define BGY_REQUEST_TIMEOUT          60              // curl请求超时时间（秒）
-#define BGY_USER_AGENT               "BGY-KaoQinJi"      // http头 User-Agent 值
-#define BGY_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
-#define BGY_SIGN_KEY                 "sign"     // 签名参数 键名
-#define BGY_URL_MAX_LENGTH           4096       // URL 最大长度
-#define BGY_SIGN_HYPHEN              "|"        // 签名字符片段连接符
-#define BGY_RESPONSE_MAX_CONTENT_LENGTH     INT_MAX     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
-#define BGY_FREAD_BUFFER_SIZE        4096       // 读文件时 buffer 字节数（NOTE：栈上分配）
-
-
-#define BGY_STRINGIZE_(var)          #var
-#define BGY_STRINGIZE(var)           BGY_STRINGIZE_(var)
-#define BGY_STRLITERAL_LEN(str)      (sizeof(str) - 1)
-
-#ifdef NDEBUG
-#   define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                             \
-        << __LINE__ << ":" << __FUNCTION__ << "()\t"  << __VA_ARGS__ << std::endl;
-#   define BGY_SAY(...)
-#   define BGY_DUMP(...)
-#else
-#   if defined(__linux__) || defined(__unix__) || defined(__APPLE__)
-#       define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                         \
-            << __LINE__ << ":" << __FUNCTION__ << "()\tERROR: [\033[32;31;5m"           \
-            << __VA_ARGS__ << "\033[0m]" << std::endl;
-#       define BGY_SAY(...)      ::std::cout << __FILE__ << ":"                         \
-            << __LINE__ << ":" << __FUNCTION__ << "()"                                  \
-            << "\t[\033[32;49;5m" << __VA_ARGS__ << "\033[0m]" << std::endl;
-#       define BGY_DUMP(...)      ::std::cout << __FILE__ << ":"                        \
-            << __LINE__ << ":" << __FUNCTION__ << "()"                                  \
-            << "\t\033[32;34;5m" << #__VA_ARGS__ << "\033[0m: "                         \
-            << "[\033[32;49;5m" << __VA_ARGS__ << "\033[0m]" << std::endl;
-#   else
-#       define BGY_ERR(...)      ::std::cerr << __FILE__ << ":"                         \
-            << __LINE__ << ":" << __FUNCTION__ << "()\t"  << __VA_ARGS__ << std::endl;
-#       define BGY_SAY(...)      ::std::cout << __FILE__ << ":"                         \
-            << __LINE__ << ":" << __FUNCTION__ << "()"                                  \
-            << "\t[" << __VA_ARGS__ << "]" << std::endl;
-#       define BGY_DUMP(...)      ::std::cout << __FILE__ << ":"                        \
-            << __LINE__ << ":" << __FUNCTION__ << "()"                                  \
-            << "\t" << #__VA_ARGS__ << ": [" << __VA_ARGS__ << "]" << std::endl;
-#   endif
-#endif
-
-#define BGY_PROTOCOL_VERSION                                                            \
-    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_MAJOR) "."                                       \
-    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_MINOR) "."                                       \
-    BGY_STRINGIZE(BGY_PROTOCOL_VERSION_PATCH)
 
 
 namespace bgy {
@@ -101,7 +46,7 @@ public:
         return src;
     }
 
-    PtrType& getRef()
+    PtrType& ref()
     {
         return src;
     }
@@ -139,8 +84,8 @@ public:
     {
         if (src != NULL)
         {
-//            freeResourceFunc(src);
-//            src = NULL;
+            freeResourceFunc(src);
+            src = NULL;
         }
     }
 
@@ -172,7 +117,7 @@ public:
     template<typename It>
     static bool hex(const uint8_t* data, std::size_t length, It begin, const It end)
     {
-        if (end - begin < static_cast<int64_t>(length << 1))
+        if (BGY_UNLIKELY(end - begin < static_cast<int64_t>(length << 1)))
         {
             return false;
         }
@@ -237,14 +182,14 @@ public:
             {
                 if (plainBegin < data)
                 {
-                    if (end - res < data - plainBegin)
+                    if (BGY_UNLIKELY(end - res < data - plainBegin))
                     {
                         return NULL;
                     }
                     Aside::paste(res, plainBegin, data - plainBegin);
                 }
                 plainBegin = data + 1;
-                if (end - res < 3)
+                if (BGY_UNLIKELY(end - res < 3))
                 {
                     return NULL;
                 }
@@ -257,7 +202,7 @@ public:
         {
             if (plainBegin < data)
             {
-                if (end - res < data - plainBegin)
+                if (BGY_UNLIKELY(end - res < data - plainBegin))
                 {
                     return NULL;
                 }
@@ -266,7 +211,7 @@ public:
         }
         else
         {
-            if (end - res < static_cast<int64_t>(str.size()))
+            if (BGY_UNLIKELY(end - res < static_cast<int64_t>(str.size())))
             {
                 return NULL;
             }
