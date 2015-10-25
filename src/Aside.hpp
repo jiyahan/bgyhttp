@@ -17,12 +17,15 @@ extern "C" {
 #include <string>
 #include <iostream>
 
+// 签名用的密钥
+#define BGY_SECRET                   "FJDFf*e^fegffdh&^gfbvoi&*jf|{{kdm(9"
+
 // convention
 #define BGY_PROTOCOL_VERSION_MAJOR   0        // 主版本号
 #define BGY_PROTOCOL_VERSION_MINOR   1        // 分支版本号
 #define BGY_PROTOCOL_VERSION_PATCH   0        // 补丁版本号
 #define BGY_CONNECT_TIMEOUT          10              // curl连接超时时间（秒）
-#define BGY_REQUEST_TIMEOUT                  60              // curl请求超时时间（秒）
+#define BGY_REQUEST_TIMEOUT          60              // curl请求超时时间（秒）
 #define BGY_USER_AGENT               "KaoQinJi"      // http头 User-Agent 值
 #define BGY_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
 #define BGY_SIGN_KEY                 "sign"     // 签名参数 键名

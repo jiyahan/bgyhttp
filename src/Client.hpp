@@ -99,6 +99,7 @@ private:
 
 public:
     Client():
+        secret(BGY_SECRET),
         followLocation(true),
         connectTimeout(BGY_CONNECT_TIMEOUT),
         timeout(BGY_REQUEST_TIMEOUT),
@@ -380,6 +381,10 @@ private:
         cursor += offset;
 
         MD5Stream stream;
+        if (!req.noSign)
+        {
+            stream << secret << signHyphen;
+        }
         for (StringPtrPairList::const_iterator it = paramPtrs.begin(),
             lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
         {
