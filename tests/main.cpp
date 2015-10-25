@@ -80,9 +80,9 @@ int main(int argc, char* argv[])
             }
         }
 
-        std::cout << std::string(40, '<') << std::endl;
+        std::cout << std::string(20, '-') << "↓↓ 响应正文↓↓ " << std::string(20, '-') << std::endl;
         std::cout << response.content() << std::endl;   // http响应正文。
-        std::cout << std::string(40, '>') << std::endl;
+        std::cout << std::string(20, '-') << "↑↑ 响应正文↑↑ " << std::string(20, '-') << std::endl;
         BGY_DUMP(response.processSuccess());    // 处理过程是否全部成功（处理成功 不代表结果正确）
         BGY_DUMP(response.ok());            // 是否一切OK：处理成功、结果正确。
         BGY_DUMP(response.statusCode());    // http状态码，比如 200,304,404等
@@ -100,9 +100,9 @@ int main(int argc, char* argv[])
     //* GET 便捷用法：
     {
         bgy::Response response = client.get(url, params);
-        std::cout << std::string(40, '<') << std::endl;
+        std::cout << std::string(20, '-') << "↓↓ 响应正文↓↓ " << std::string(20, '-') << std::endl;
         std::cout << response.content() << std::endl;
-        std::cout << std::string(40, '>') << std::endl;
+        std::cout << std::string(20, '-') << "↑↑ 响应正文↑↑ " << std::string(20, '-') << std::endl;
         BGY_DUMP(response.processSuccess());
         BGY_DUMP(response.ok());
         BGY_DUMP(response.statusCode());
@@ -119,9 +119,9 @@ int main(int argc, char* argv[])
     //* POST 便捷用法:
     {
         bgy::Response response = client.post(url, params);
-        std::cout << std::string(40, '<') << std::endl;
+        std::cout << std::string(20, '-') << "↓↓ 响应正文↓↓ " << std::string(20, '-') << std::endl;
         std::cout << response.content() << std::endl;
-        std::cout << std::string(40, '>') << std::endl;
+        std::cout << std::string(20, '-') << "↑↑ 响应正文↑↑ " << std::string(20, '-') << std::endl;
         BGY_DUMP(response.processSuccess());
         BGY_DUMP(response.ok());
         BGY_DUMP(response.statusCode());
@@ -142,9 +142,9 @@ int main(int argc, char* argv[])
         uploads.push_back(bgy::StringPair("key-2", _FILE_IMG));
 
         bgy::Response response = client.post(url, params, uploads);
-        std::cout << std::string(40, '<') << std::endl;
+        std::cout << std::string(20, '-') << "↓↓ 响应正文↓↓ " << std::string(20, '-') << std::endl;
         std::cout << response.content() << std::endl;
-        std::cout << std::string(40, '>') << std::endl;
+        std::cout << std::string(20, '-') << "↑↑ 响应正文↑↑ " << std::string(20, '-') << std::endl;
         BGY_DUMP(response.processSuccess());
         BGY_DUMP(response.ok());
         BGY_DUMP(response.statusCode());
@@ -173,7 +173,8 @@ void prepare()
         std::FILE* fp = std::fopen(_FILE_IMG, "wb");
         if (fp)
         {
-#if defined(__GNUC__) && !defined(__CLANG__)
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6 && !defined(__clang__)
+#   pragma GCC diagnostic push
 #   pragma GCC diagnostic ignored "-Wnarrowing"
 #endif
             const char content[] = {
@@ -214,7 +215,7 @@ void prepare()
                 0xee,0xe6,0x7b,0xcb,0xa9,0xae,0xaf,0x26,0x96,0x7b,0x99,0x9d,0xa4,0x96,0x59,0x5c,0xb3,
                 0xc8,0xec,0x72,0x59,0x89,0xe4,0x92,0x49,0x24,0x9a,0x0,0xff,0x0,0xff,0xd9
             };
-#ifdef __GNUC__
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6 && !defined(__clang__)
 #   pragma GCC diagnostic pop
 #endif
             std::fwrite(content, sizeof(*content), sizeof(content), fp);

@@ -203,9 +203,10 @@ private:
 
     bool prepareUpload(SafeCurl& ch, const Request& req) const
     {
-        typedef SafePtr<curl_httppost*, curl_formfree> SafePost;
+        typedef SafePtr<struct curl_httppost*, curl_formfree> SafePost;
         StrPtrPairList paramPtrs = genPtrParams(req);
-        SafePost post, last;
+        SafePost post;
+        struct curl_httppost* last = NULL;
 
         StrList signs;
         signs.reserve(!req.params.empty() + 1 + req.uploads.size());
@@ -219,7 +220,7 @@ private:
             for (StrPtrPairList::const_iterator it = paramPtrs.begin(),
                 lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
             {
-                if (BGY_UNLIKELY(curl_formadd(&post.ref(), &last.ref(),
+                if (BGY_UNLIKELY(curl_formadd(&post.ref(), &last,
                     CURLFORM_PTRNAME, it->first->c_str(),
                     CURLFORM_PTRCONTENTS, it->second->c_str(),
                     CURLFORM_END) != CURL_FORMADD_OK))
@@ -259,7 +260,7 @@ private:
                 signs.push_back(fileSign);
             }
 
-            if (BGY_UNLIKELY(curl_formadd(&post.ref(), &last.ref(),
+            if (BGY_UNLIKELY(curl_formadd(&post.ref(), &last,
                 CURLFORM_PTRNAME, it->first.c_str(),
                 CURLFORM_FILE, it->second.c_str(),
                 CURLFORM_FILENAME, fileKeyNames.rbegin()->second,
@@ -294,19 +295,19 @@ private:
             std::string sign;
             {
                 std::sort(signs.begin(), signs.end(), std::less<std::string>());
-                MD5Stream gather;
-                gather << secret;
+                MD5Stream stream;
+                stream << secret;
                 for (StrList::const_iterator it = signs.begin(); it != signs.end(); ++it)
                 {
-                    gather << signHyphen << *it;
+                    stream << signHyphen << *it;
                 }
-                gather >> sign;
+                stream >> sign;
             }
 
-            if (curl_formadd(&post.ref(), &last.ref(),
+            if (BGY_UNLIKELY(curl_formadd(&post.ref(), &last,
                 CURLFORM_PTRNAME, signKey.c_str(),
                 CURLFORM_COPYCONTENTS, sign.c_str(),
-                CURLFORM_END) != CURL_FORMADD_OK)
+                CURLFORM_END) != CURL_FORMADD_OK))
             {
                 BGY_ERR("failed no curl_formadd()");
                 return false;
