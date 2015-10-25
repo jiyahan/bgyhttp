@@ -466,31 +466,31 @@ public:
     }
 };
 
-MD5Stream& operator<<(MD5Stream& stream, const std::string& data)
+inline MD5Stream& operator<<(MD5Stream& stream, const std::string& data)
 {
     stream.append(data.data(), data.size());
     return stream;
 }
 
-MD5Stream& operator<<(MD5Stream& stream, const char* data)
+inline MD5Stream& operator<<(MD5Stream& stream, const char* data)
 {
     stream.append(data, std::strlen(data));
     return stream;
 }
 
-MD5Stream& operator<<(MD5Stream& stream, const RawStr& str)
+inline MD5Stream& operator<<(MD5Stream& stream, const RawStr& str)
 {
     stream.append(str.first, str.second);
     return stream;
 }
 
-MD5Stream& operator<<(MD5Stream& stream, const char data)
+inline MD5Stream& operator<<(MD5Stream& stream, const char data)
 {
     stream.append(&data, sizeof(char));
     return stream;
 }
 
-MD5Stream& operator>>(MD5Stream& stream, std::string& str)
+inline MD5Stream& operator>>(MD5Stream& stream, std::string& str)
 {
     if (str.empty())
     {
@@ -501,7 +501,7 @@ MD5Stream& operator>>(MD5Stream& stream, std::string& str)
 }
 
 // NOTE: 外部保证 begin 足够长，否则溢出。
-MD5Stream& operator>>(MD5Stream& stream, char* str)
+inline MD5Stream& operator>>(MD5Stream& stream, char* str)
 {
     stream.ok = stream.hex(str);
     return stream;

@@ -14,38 +14,37 @@
  */
 
 #include "predef.hpp"       // tests/predef.hpp 为 bgy-SDK 设定了一些参数。
+#ifdef __unix__
 extern "C" {
-#include <unistd.h>
+#   include <unistd.h>
 }
+#endif
 #include <cstdlib>
 #include <cstdio>
 #include <string>
 #include <iostream>
 #include <fstream>
-#include "bgy/Client.hpp"   // 使用 bgy-SDK::Client/Request/Response 只需要包含这一个头文件。
+#include "bgy/Client.hpp"   // 使用 bgy-SDK Client/Request/Response 只需要包含这一个头文件。
 
+
+// 待上传的文件，posix下如果不存在会自动生成。
 #define _FILE_TXT "/tmp/a.txt"
 #define _FILE_IMG "/tmp/b.jpg"
 
 int main(int argc, char* argv[])
 {
-    if (argc < 2 || argv[1] == std::string("-h") || argv[1] == std::string("--help"))
-    {
-        std::cerr << "usage: " << argv[0] << " <url>" << std::endl;
-        std::exit(EXIT_SUCCESS);
-    }
-    extern void prepare();
-    prepare();
+    extern void prepare(int, char*[]);
+    prepare(argc, argv);
 
     const std::string url(argv[1]);
-    bgy::StrPairList params;    // 请求参数
+    bgy::StrPairList params;    // 请求参数。
     params.push_back(bgy::StringPair("param-key", "param-value"));
 
     bgy::CurlScope bgyCurlScope;    // 保证这个变量不被析构，直到所有 CURL 操作全部做完。
 
-    bgy::Client client;     // 线程安全，构造函数除外。建议一次构造、重复利用。
+    bgy::Client client;     // 线程安全。建议一次构造、重复利用。
 
-    //* 演示 Request/Response 的用法: 先构造<Request>；然后用<Clieng>.request(<Request>)发送，并接收<Response>。
+    //* 演示 Request/Response 的用法: 先构造<Request>；然后用<Client>.request(<Request>)发送，并接收<Response>。
     {
         bgy::Request request(url);
         request.addParam("name", "John Tom")    // 添加参数。（NOTE：参数值必须是标量，不支持数组、关联数组等）。
@@ -54,7 +53,7 @@ int main(int argc, char* argv[])
             .addHeader("Cookie", "cookieName=cookieVar;cookieKey=cookieValue")
             .addFile("key-1", _FILE_TXT)    // 添加上传文件（将会自动改用 POST）。
             .addFile("key-2", _FILE_IMG)    // 注意 key 不能重复。
-            .setNoSign();   // 不做签名（这是演习，仅对服务器端不需要签名校验的接口使用）。
+            .setNoSign();   // 不生成参数签名（仅对服务器端不校验签名的接口设置）。
         bgy::Response response = client.request(request);
 
         if (response.ok())  // all ok
@@ -158,8 +157,15 @@ int main(int argc, char* argv[])
     }   // */
 }
 
-void prepare()
+void prepare(int argc, char* argv[])
 {
+    if (argc < 2 || argv[1] == std::string("-h") || argv[1] == std::string("--help"))
+    {
+        std::cerr << "usage: " << argv[0] << " <url>" << std::endl;
+        std::exit(EXIT_SUCCESS);
+    }
+
+#ifdef __unix__
     if (access(_FILE_TXT, F_OK))
     {
         // 生成一个文本文件 用于上传
@@ -173,10 +179,10 @@ void prepare()
         std::FILE* fp = std::fopen(_FILE_IMG, "wb");
         if (fp)
         {
-#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6 && !defined(__clang__)
-#   pragma GCC diagnostic push
-#   pragma GCC diagnostic ignored "-Wnarrowing"
-#endif
+#   if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6 && !defined(__clang__)
+#       pragma GCC diagnostic push
+#       pragma GCC diagnostic ignored "-Wnarrowing"
+#   endif
             const char content[] = {
                 0xff,0xd8,0xff,0xe0,0x0,0x10,0x4a,0x46,0x49,0x46,0x0,0x1,0x1,0x0,
                 0x0,0x1,0x0,0x1,0x0,0x0,0xff,0xdb,0x0,0x84,0x0,0x6,0x4,0x5,0x6,0x5,0x4,0x6,0x6,0x5,0x6,
@@ -215,12 +221,13 @@ void prepare()
                 0xee,0xe6,0x7b,0xcb,0xa9,0xae,0xaf,0x26,0x96,0x7b,0x99,0x9d,0xa4,0x96,0x59,0x5c,0xb3,
                 0xc8,0xec,0x72,0x59,0x89,0xe4,0x92,0x49,0x24,0x9a,0x0,0xff,0x0,0xff,0xd9
             };
-#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6 && !defined(__clang__)
-#   pragma GCC diagnostic pop
-#endif
+#   if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6 && !defined(__clang__)
+#       pragma GCC diagnostic pop
+#   endif
             std::fwrite(content, sizeof(*content), sizeof(content), fp);
             std::fflush(fp);
         }
+#endif
     }
 }
 
