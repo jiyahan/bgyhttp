@@ -18,7 +18,7 @@ int main(int argc, char* argv[])
         std::exit(EXIT_SUCCESS);
     }
 
-    bgy::StringPairList params;
+    bgy::StrPairList params;
     params.push_back(bgy::StringPair("aaa", "bbb"));
 
     bgy::CurlScope bgyCurlScope;    // 保证这个变量不被析构，直到所有 CURL 操作全部做完。
@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
 
     // POST (with file upload):
     {
-        bgy::StringPairList uploads;
+        bgy::StrPairList uploads;
         uploads.push_back(bgy::StringPair("filename10086", "/tmp/a.txt"));
         uploads.push_back(bgy::StringPair("filename17951", "/tmp/b.txt"));
         bgy::Client client;

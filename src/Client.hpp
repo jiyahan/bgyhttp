@@ -39,54 +39,12 @@ extern "C" {
 
 namespace bgy {
 
-
-class UploadItem
-{
-public:
-    const std::string* key;
-    const char* basename;
-    std::string md5;
-
-    explicit UploadItem(const StringPair& item)
-        : key(&item.first), basename(::basename(item.second.c_str())),
-          md5(MD5Stream::md5File(item.second.c_str()))
-    {}
-};
-
-
-class UploadItemCmper
-{
-public:
-    bool operator()(const UploadItem& left, const UploadItem& right) const
-    {
-        int k = left.key->compare(*right.key);
-        if (k)
-        {
-            return k < 0 ? false : true;
-        }
-        else
-        {
-            int b = std::strcmp(left.basename, right.basename);
-            if (b)
-            {
-                return b < 0 ? false : true;
-            }
-            else
-            {
-                int m = left.md5.compare(right.md5);
-                return m < 0 ? false : true;
-            }
-        }
-    }
-};
-
-
 class Client
 {
 private:
     typedef SafePtr<struct curl_slist*, curl_slist_free_all> SafeCurlSlist;
     typedef std::pair<SafeCurl&, Response&> CurlResponsePair;
-    typedef std::vector<StringPtrPair> StringPtrPairList;
+    typedef std::vector<StrPtrPair> StrPtrPairList;
     typedef SafePtr<char*, &Aside::freeCharArray> SafeCharArray;
 
     std::string secret;
@@ -111,30 +69,30 @@ public:
 
     Response get(const std::string& url)
     {
-        return request(url, GET, StringPairList());
+        return request(url, GET, StrPairList());
     }
 
-    Response get(const std::string& url, const StringPairList& params)
+    Response get(const std::string& url, const StrPairList& params)
     {
         return request(url, GET, params);
     }
 
     Response post(const std::string& url)
     {
-        return request(url, POST, StringPairList());
+        return request(url, POST, StrPairList());
     }
 
-    Response post(const std::string& url, const StringPairList& params)
+    Response post(const std::string& url, const StrPairList& params)
     {
         return request(url, POST, params);
     }
 
-    Response post(const std::string& url, const StringPairList& params, const StringPairList& uploads)
+    Response post(const std::string& url, const StrPairList& params, const StrPairList& uploads)
     {
         return request(Request(url, params, uploads));
     }
 
-    Response request(const std::string& url, HttpMethod method, const StringPairList& params)
+    Response request(const std::string& url, HttpMethod method, const StrPairList& params)
     {
         return request(Request(url, method, params));
     }
@@ -238,54 +196,67 @@ private:
     bool prepareUpload(SafeCurl& ch, const Request& req) const
     {
         typedef SafePtr<curl_httppost*, curl_formfree> SafePost;
-        StringPtrPairList paramPtrs = genParams(req);
+        StrPtrPairList paramPtrs = genParams(req);
         SafePost post, last;
 
-        MD5Stream pstream;
-        for (StringPtrPairList::const_iterator it = paramPtrs.begin(),
-            lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
+        StrList signs;
+        signs.reserve(!req.params.empty() + 1 + req.uploads.size());
+
         {
-            if (curl_formadd(&post.getRef(), &last.getRef(),
-                CURLFORM_PTRNAME, it->first->c_str(),
-                CURLFORM_PTRCONTENTS, it->second->c_str(),
-                CURLFORM_END) != CURL_FORMADD_OK)
+            MD5Stream stream;
+            if (!req.noSign)
             {
-                BGY_ERR("failed no curl_formadd()");
-                return false;
+                stream << secret << signHyphen;
+            }
+            for (StrPtrPairList::const_iterator it = paramPtrs.begin(),
+                lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
+            {
+                if (curl_formadd(&post.getRef(), &last.getRef(),
+                    CURLFORM_PTRNAME, it->first->c_str(),
+                    CURLFORM_PTRCONTENTS, it->second->c_str(),
+                    CURLFORM_END) != CURL_FORMADD_OK)
+                {
+                    BGY_ERR("failed no curl_formadd()");
+                    return false;
+                }
+                if (!req.noSign)
+                {
+                    stream << *it->first << '=' << *it->second;
+                    if (it != lastIt)
+                    {
+                        stream << '&';
+                    }
+                }
             }
             if (!req.noSign)
             {
-                pstream << *it->first << '=' << *it->second;
-                if (it != lastIt)
-                {
-                    pstream << '&';
-                }
+                std::string paramSign;
+                stream >> paramSign;
+                BGY_DUMP(paramSign);
+                signs.push_back(paramSign);
             }
         }
-        std::string paramSign;
-        if (!req.noSign)
-        {
-            pstream >> paramSign;
-            BGY_DUMP(paramSign);
-        }
 
-        typedef std::vector<UploadItem> UploadItemList;
-        UploadItemList uploadItems;
-        uploadItems.reserve(req.uploads.size());
-        for (StringPairList::const_iterator it = req.uploads.begin(); it != req.uploads.end(); ++it)
+        typedef std::pair<const std::string*, const char*> StrRawPair;
+        typedef std::vector<StrRawPair> StrRawPairList;
+        StrRawPairList fileKeyNames;
+        fileKeyNames.reserve(req.uploads.size());
+        for (StrPairList::const_iterator it = req.uploads.begin(); it != req.uploads.end(); ++it)
         {
             if (*it->second.rbegin() == '/') { return false; }
-
-            uploadItems.push_back(UploadItem(*it));
-            const UploadItem& item = *uploadItems.rbegin();
-            if (item.md5.empty()) { return false; }
+            fileKeyNames.push_back(StrRawPair(&it->first, ::basename(it->second.c_str())));
+            {
+                std::string fileSign = MD5Stream::md5File(it->second.c_str());
+                if (fileSign.empty()) { return false; }
+                signs.push_back(fileSign);
+            }
 
             BGY_DUMP(it->first.c_str());
             BGY_DUMP(it->second.c_str());
             if (curl_formadd(&post.getRef(), &last.getRef(),
                 CURLFORM_PTRNAME, it->first.c_str(),
                 CURLFORM_FILE, it->second.c_str(),
-                CURLFORM_FILENAME, item.basename,
+                CURLFORM_FILENAME, fileKeyNames.rbegin()->second,
                 CURLFORM_END) != CURL_FORMADD_OK)
             {
                 BGY_ERR("failed no curl_formadd()");
@@ -295,32 +266,38 @@ private:
 
         if (!req.noSign)
         {
-            std::sort(uploadItems.begin(), uploadItems.end(), UploadItemCmper());
+            std::sort(fileKeyNames.begin(), fileKeyNames.end(), StrPtrPairCmper<const char*>());
 
-            std::string uploadParamSign;
             {
                 MD5Stream stream;
-                for (UploadItemList::const_iterator it = uploadItems.begin(),
-                    lastIt = uploadItems.end() - 1; it != uploadItems.end(); ++it)
+                stream << secret << signHyphen;
+                for (StrRawPairList::const_iterator it = fileKeyNames.begin(),
+                    lastIt = fileKeyNames.end() - 1; it != fileKeyNames.end(); ++it)
                 {
-                    stream << *it->key << '=' << *it->basename;
+                    stream << *it->first << '=' << it->second;
                     if (it != lastIt)
                     {
                         stream << '&';
                     }
                 }
+                std::string uploadParamSign;
                 stream >> uploadParamSign;
+                BGY_DUMP(uploadParamSign);
+                signs.push_back(uploadParamSign);
             }
 
             std::string sign;
             {
+                std::sort(signs.begin(), signs.end(), std::less<std::string>());
                 MD5Stream gather;
-                gather << secret << signHyphen << paramSign << signHyphen << uploadParamSign;
-                for (UploadItemList::const_iterator it = uploadItems.begin(); it != uploadItems.end(); ++it)
+                gather << secret;
+                for (StrList::const_iterator it = signs.begin(); it != signs.end(); ++it)
                 {
-                    gather << signHyphen << it->md5;
+                    BGY_DUMP(*it);
+                    gather << signHyphen << *it;
                 }
                 gather >> sign;
+                BGY_DUMP(sign);
             }
 
             if (curl_formadd(&post.getRef(), &last.getRef(),
@@ -373,7 +350,7 @@ private:
 
     SafeCharArray fillParams(const Request& req, std::size_t offset, bool& ok) const
     {
-        StringPtrPairList paramPtrs = genParams(req);
+        StrPtrPairList paramPtrs = genParams(req);
         SafeCharArray qs(new char[std::min<std::size_t>(
             calcEncodedMaxSize(paramPtrs, !req.noSign), BGY_URL_MAX_LENGTH)]);
         char* cursor = qs.get();
@@ -385,7 +362,7 @@ private:
         {
             stream << secret << signHyphen;
         }
-        for (StringPtrPairList::const_iterator it = paramPtrs.begin(),
+        for (StrPtrPairList::const_iterator it = paramPtrs.begin(),
             lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
         {
             cursor = Aside::urlEncode(*it->first, cursor, end);
@@ -463,15 +440,15 @@ private:
         return length;
     }
 
-    StringPtrPairList genParams(const Request& req) const
+    StrPtrPairList genParams(const Request& req) const
     {
-        StringPtrPairList paramPtrs;
-        for (StringPairList::const_iterator it = req.params.begin(); it != req.params.end(); ++it)
+        StrPtrPairList paramPtrs;
+        for (StrPairList::const_iterator it = req.params.begin(); it != req.params.end(); ++it)
         {
             paramPtrs.push_back(std::make_pair(&it->first, &it->second));
         }
         paramPtrs.push_back(std::make_pair(&protoVersionKey, &protoVersion));
-        std::sort(paramPtrs.begin(), paramPtrs.end(), StringPtrPairCmper());
+        std::sort(paramPtrs.begin(), paramPtrs.end(), StrPtrPairCmper<const std::string*>());
         return paramPtrs;
     }
 
@@ -484,14 +461,14 @@ private:
         return stream.good();
     }
 
-    std::size_t calcEncodedMaxSize(const StringPtrPairList& paramPtrs, bool sign) const
+    std::size_t calcEncodedMaxSize(const StrPtrPairList& paramPtrs, bool sign) const
     {
         std::size_t size = paramPtrs.size() * 2;    // = & 个数 + 结尾的 0
         if (sign)
         {
             size += BGY_STRLITERAL_LEN(BGY_SIGN_KEY) * 3 + MD5Stream::RESULT_SIZE + 2;
         }
-        for (StringPtrPairList::const_iterator it = paramPtrs.begin(); it != paramPtrs.end(); ++it)
+        for (StrPtrPairList::const_iterator it = paramPtrs.begin(); it != paramPtrs.end(); ++it)
         {
             size += (it->first->size() + it->second->size()) * 3;
         }

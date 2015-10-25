@@ -78,9 +78,9 @@ namespace bgy {
 
 enum HttpMethod { GET = 1, POST = 2, };
 typedef std::pair<std::string, std::string> StringPair;
-typedef std::pair<const std::string*, const std::string*> StringPtrPair;
-typedef std::vector<StringPair> StringPairList;
-typedef std::vector<std::string> StringList;
+typedef std::pair<const std::string*, const std::string*> StrPtrPair;
+typedef std::vector<StringPair> StrPairList;
+typedef std::vector<std::string> StrList;
 
 
 // 用于提供异常安全保证
@@ -149,7 +149,6 @@ private:
 };
 
 typedef SafePtr<CURL*, curl_easy_cleanup> SafeCurl;
-
 
 typedef std::pair<const char*, size_t> RawStr;
 
@@ -331,11 +330,13 @@ public:
 };
 
 
-class StringPtrPairCmper
+template<typename SecondType>
+class StrPtrPairCmper
 {
     std::less<std::string> cmper;
+    typedef std::pair<const std::string*, SecondType> PairType;
 public:
-    bool operator()(const StringPtrPair& left, const StringPtrPair& right) const
+    bool operator()(const PairType& left, const PairType& right) const
     {
         return cmper(*left.first, *right.first);
     }
