@@ -1,7 +1,7 @@
 
 /**
  * debug 编译:
- * cd tests
+ * cd bgy-http
  * g++ -Wall -g3 -O0 main.cpp -o request -I.. -lcurl -lcrypto
  *
  * release 编译 （注意 -DNDEBUG，否则会打印大量 debug 信息）：
