@@ -13,7 +13,7 @@
  * 密钥、协议版本号、User-Agent、连接超时/请求超时 等设置见 Aside.hpp 。
  */
 
-#include "predef.hpp"       // tests/predef.hpp 为 bgy-SDK 设定了一些参数。
+#include "predef.hpp"       // tests/predef.hpp 为 bgy-http 设定了一些参数。
 #ifdef __unix__
 extern "C" {
 #   include <unistd.h>
@@ -24,7 +24,7 @@ extern "C" {
 #include <string>
 #include <iostream>
 #include <fstream>
-#include "bgy/Client.hpp"   // 使用 bgy-SDK Client/Request/Response 只需要包含这一个头文件。
+#include "bgy/Client.hpp"   // 使用 bgy-http Client/Request/Response 只需要包含这一个头文件。
 
 
 // 待上传的文件，posix下如果不存在会自动生成。

@@ -1,4 +1,4 @@
-# bgy SDK
+# bgy-http
 简单、非全功能的 http 客户端库。
 特性：
 * header only
