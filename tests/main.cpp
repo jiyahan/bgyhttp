@@ -61,11 +61,11 @@ int main(int argc, char* argv[])
             // Content-Type 里指定了 charset=utf-8 或者 没有指定任何 charset：
             if (response.isUtf8() || response.charsetNotSpecified())
             {
-                if (response.isJson())
+                if (response.isJson())  // Content-Type: application/json 或 text/json
                 {
                     // process response.content() ...
                 }
-                else if (response.isHtml())
+                else if (response.isHtml())// Content-Type: text/html
                 {
                     // process response.content() ...
                 }
