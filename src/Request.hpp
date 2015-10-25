@@ -53,6 +53,16 @@ public:
         return *this;
     }
 
+    Request& setPost()
+    {
+        return setMethod(POST);
+    }
+
+    Request& setGet()
+    {
+        return setMethod(GET);
+    }
+
     Request& setMethod(HttpMethod _method)
     {
         method = _method;

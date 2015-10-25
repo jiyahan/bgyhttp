@@ -17,7 +17,7 @@ extern "C" {
 #include <string>
 #include <iostream>
 
-// 签名用的密钥
+// 签名用的密钥，与服务器端保持一致，每台设备都不一样。
 #define BGY_SECRET                   "FJDFf*e^fegffdh&^gfbvoi&*jf|{{kdm(9"
 
 // convention
@@ -26,7 +26,7 @@ extern "C" {
 #define BGY_PROTOCOL_VERSION_PATCH   0        // 补丁版本号
 #define BGY_CONNECT_TIMEOUT          10              // curl连接超时时间（秒）
 #define BGY_REQUEST_TIMEOUT          60              // curl请求超时时间（秒）
-#define BGY_USER_AGENT               "KaoQinJi"      // http头 User-Agent 值
+#define BGY_USER_AGENT               "BGY-KaoQinJi"      // http头 User-Agent 值
 #define BGY_PROTOCOL_VERSION_KEY     "protocol_version"      // 协议版本号参数 键名
 #define BGY_SIGN_KEY                 "sign"     // 签名参数 键名
 #define BGY_URL_MAX_LENGTH           4096       // URL 最大长度
@@ -172,7 +172,7 @@ public:
     template<typename It>
     static bool hex(const uint8_t* data, std::size_t length, It begin, const It end)
     {
-        if (end - begin < (length << 1))
+        if (end - begin < static_cast<int64_t>(length << 1))
         {
             return false;
         }
@@ -266,7 +266,7 @@ public:
         }
         else
         {
-            if (end - res < str.size())
+            if (end - res < static_cast<int64_t>(str.size()))
             {
                 return NULL;
             }

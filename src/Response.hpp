@@ -34,6 +34,11 @@ public:
         return isUtf8(charset());
     }
 
+    bool charsetNotSpecified() const
+    {
+        return charset().empty();
+    }
+
     bool isHtml() const
     {
         return Aside::startsWith(lowerContentType, _BGY_CONTENT_TYPE_HTML, BGY_STRLITERAL_LEN(_BGY_CONTENT_TYPE_HTML))
@@ -117,7 +122,8 @@ public:
 private:
     void setContentType(const char* _contentType)
     {
-        lowerContentType = Aside::toLowerCase(_contentType, std::strlen(_contentType));
+        lowerContentType = _contentType == NULL ? std::string()
+            : Aside::toLowerCase(_contentType, std::strlen(_contentType));
     }
 
     void setStatusCode(int16_t __statusCode)

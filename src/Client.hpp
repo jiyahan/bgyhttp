@@ -58,7 +58,7 @@ private:
 public:
     Client():
         secret(BGY_SECRET),
-        followLocation(true),
+        followLocation(true),   // 是否跟随重定向
         connectTimeout(BGY_CONNECT_TIMEOUT),
         timeout(BGY_REQUEST_TIMEOUT),
         userAgent(BGY_USER_AGENT),
@@ -125,7 +125,7 @@ private:
         if (req.url.empty()) { return resp; }
         if (request(ch, req, resp))
         {
-            if (resp.content().size() != resp.contentLength())
+            if (static_cast<int64_t>(resp.content().size()) != resp.contentLength() && resp.contentLengthSpecified())
             {
                 resp.setProcessFailed();
             }
@@ -183,6 +183,10 @@ private:
         {
             _BGY_CURL_CALL(curl_easy_perform(ch.get()), return false);
         }
+        if (!chp.headerProcessed)
+        {
+            processHeader(ch, resp);
+        }
         return true;
     }
 
@@ -190,13 +194,17 @@ private:
     {
         SafeCurlSlist headers;
         headers.reset(curl_slist_append(headers.get(), "Connection: close"));
+        for (StrPairList::const_iterator it = req.headers.begin(); it != req.headers.end(); ++it)
+        {
+            headers.reset(curl_slist_append(headers.get(), (it->first + ": " + it->second).c_str()));
+        }
         return headers;
     }
 
     bool prepareUpload(SafeCurl& ch, const Request& req) const
     {
         typedef SafePtr<curl_httppost*, curl_formfree> SafePost;
-        StrPtrPairList paramPtrs = genParams(req);
+        StrPtrPairList paramPtrs = genPtrParams(req);
         SafePost post, last;
 
         StrList signs;
@@ -206,7 +214,7 @@ private:
             MD5Stream stream;
             if (!req.noSign)
             {
-                stream << secret << signHyphen;
+                stream << secret << signHyphen << userAgent << signHyphen;
             }
             for (StrPtrPairList::const_iterator it = paramPtrs.begin(),
                 lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
@@ -251,8 +259,6 @@ private:
                 signs.push_back(fileSign);
             }
 
-            BGY_DUMP(it->first.c_str());
-            BGY_DUMP(it->second.c_str());
             if (curl_formadd(&post.getRef(), &last.getRef(),
                 CURLFORM_PTRNAME, it->first.c_str(),
                 CURLFORM_FILE, it->second.c_str(),
@@ -282,7 +288,6 @@ private:
                 }
                 std::string uploadParamSign;
                 stream >> uploadParamSign;
-                BGY_DUMP(uploadParamSign);
                 signs.push_back(uploadParamSign);
             }
 
@@ -293,11 +298,9 @@ private:
                 gather << secret;
                 for (StrList::const_iterator it = signs.begin(); it != signs.end(); ++it)
                 {
-                    BGY_DUMP(*it);
                     gather << signHyphen << *it;
                 }
                 gather >> sign;
-                BGY_DUMP(sign);
             }
 
             if (curl_formadd(&post.getRef(), &last.getRef(),
@@ -350,7 +353,7 @@ private:
 
     SafeCharArray fillParams(const Request& req, std::size_t offset, bool& ok) const
     {
-        StrPtrPairList paramPtrs = genParams(req);
+        StrPtrPairList paramPtrs = genPtrParams(req);
         SafeCharArray qs(new char[std::min<std::size_t>(
             calcEncodedMaxSize(paramPtrs, !req.noSign), BGY_URL_MAX_LENGTH)]);
         char* cursor = qs.get();
@@ -360,7 +363,7 @@ private:
         MD5Stream stream;
         if (!req.noSign)
         {
-            stream << secret << signHyphen;
+            stream << secret << signHyphen << userAgent << signHyphen;
         }
         for (StrPtrPairList::const_iterator it = paramPtrs.begin(),
             lastIt = paramPtrs.end() - 1; it != paramPtrs.end(); ++it)
@@ -386,7 +389,7 @@ private:
 
         if (!req.noSign)
         {
-            if (cursor == NULL || end - cursor < (signKey.size() + 2 + MD5Stream::RESULT_SIZE))
+            if (cursor == NULL || end - cursor < static_cast<int64_t>(signKey.size() + 2 + MD5Stream::RESULT_SIZE))
             {
                 ok = false;
                 return qs;
@@ -402,8 +405,6 @@ private:
 
     static size_t contentHandler(void* ptr, size_t size, size_t nmember, void* _chp)
     {
-        BGY_DUMP(size);
-        BGY_DUMP(nmember);
         CurlHandlerParam* chp = static_cast<CurlHandlerParam*>(_chp);
         if (chp->canceled) { return 0; }
         Response& resp = chp->response;
@@ -411,26 +412,11 @@ private:
         if (!chp->headerProcessed)
         {
             chp->headerProcessed = true;
-            SafeCurl& ch = chp->ch;
-            int64_t statusCode;
-            _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_RESPONSE_CODE, &statusCode),
-                resp.setProcessFailed(); return 0;);
-            char* contentType = NULL;
-            _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_TYPE, &contentType),
-                resp.setProcessFailed(); return 0; );
-            double contentLength = 0;
-            _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_LENGTH_DOWNLOAD, &contentLength),
-                resp.setProcessFailed(); return 0; );
-            BGY_DUMP(contentLength);
-            if (resp.contentLengthSpecified() && contentLength > BGY_RESPONSE_MAX_CONTENT_LENGTH)
+            if (!processHeader(chp->ch, resp))
             {
-                BGY_ERR("bad Content-Length: " << contentLength);
                 chp->canceled = true;
-                return 0;   // 取消后续回调
+                return 0;
             }
-            resp.setStatusCode(statusCode);
-            resp.setContentType(contentType);
-            resp.setContentLength(contentLength);
         }
         if (resp.contentLengthSpecified() && static_cast<int64_t>(
             resp.content().size()) >= resp.contentLength()) { return 0; }
@@ -440,7 +426,7 @@ private:
         return length;
     }
 
-    StrPtrPairList genParams(const Request& req) const
+    StrPtrPairList genPtrParams(const Request& req) const
     {
         StrPtrPairList paramPtrs;
         for (StrPairList::const_iterator it = req.params.begin(); it != req.params.end(); ++it)
@@ -450,15 +436,6 @@ private:
         paramPtrs.push_back(std::make_pair(&protoVersionKey, &protoVersion));
         std::sort(paramPtrs.begin(), paramPtrs.end(), StrPtrPairCmper<const std::string*>());
         return paramPtrs;
-    }
-
-    bool signStr(const char* str, std::size_t len, char* outBegin) const
-    {
-        BGY_DUMP(std::string(str, len));
-        MD5Stream stream;
-        stream << secret << signHyphen << RawStr(str, len);
-        stream >> outBegin;
-        return stream.good();
     }
 
     std::size_t calcEncodedMaxSize(const StrPtrPairList& paramPtrs, bool sign) const
@@ -473,6 +450,28 @@ private:
             size += (it->first->size() + it->second->size()) * 3;
         }
         return size;
+    }
+
+    static bool processHeader(SafeCurl& ch, Response& resp)
+    {
+        int64_t statusCode = 0;
+        _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_RESPONSE_CODE, &statusCode),
+            resp.setProcessFailed(); return false;);
+        char* contentType = NULL;
+        _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_TYPE, &contentType),
+            resp.setProcessFailed(); return false;);
+        double contentLength = 0;
+        _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_LENGTH_DOWNLOAD, &contentLength),
+            resp.setProcessFailed(); return false;);
+        if (resp.contentLengthSpecified() && contentLength > BGY_RESPONSE_MAX_CONTENT_LENGTH)
+        {
+            BGY_ERR("bad Content-Length: " << contentLength);
+            return false;   // 取消后续回调
+        }
+        resp.setStatusCode(statusCode);
+        resp.setContentType(contentType);
+        resp.setContentLength(contentLength);
+        return true;
     }
 };
 
