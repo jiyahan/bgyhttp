@@ -4,7 +4,6 @@
 extern "C" {
 #include <curl/curl.h>
 }
-#include <cassert>
 #include <ctime>
 #include <sstream>
 #include "Aside.hpp"
