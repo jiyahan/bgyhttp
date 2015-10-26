@@ -530,6 +530,14 @@ typedef BgyCheckSize<sizeof(std::string::value_type)>::check_type BgyCheckSizeTy
 template<typename T> class BgyCheckType;
 template<> class BgyCheckType<unsigned char> { public: typedef int check_type; };
 typedef BgyCheckType<uint8_t>::check_type BgyCheckTypeTypedef;
+// 确保 __sync_fetch_and_add / __sync_sub_and_fetch 存在
+class BgyCheckFuncExisits
+{
+private:
+    int p, i;
+    enum { _BGY_CHECK_FUNC_EXISITS_SFAA = sizeof(__sync_fetch_and_add(&p, i)),
+        _BGY_CHECK_FUNC_EXISITS_SSAF = sizeof(__sync_sub_and_fetch(&p, i)), };
+};
 }
 
 }

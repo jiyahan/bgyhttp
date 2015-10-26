@@ -42,7 +42,7 @@
 #ifndef BGY_RESPONSE_MAX_CONTENT_LENGTH
 #   ifdef __unix__
 extern "C" {
-#       include <limits.h>     // for INT_MAX
+#       include <climits>     // for INT_MAX
 }
 #       define BGY_RESPONSE_MAX_CONTENT_LENGTH     INT_MAX     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
 #   else

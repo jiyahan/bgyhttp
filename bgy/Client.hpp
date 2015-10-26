@@ -74,7 +74,7 @@ public:
         if (__sync_fetch_and_add(&done, 1) == 0)
         {
             secret = _secret;
-            done = 0;
+            __sync_sub_and_fetch(&done, 1);
             return true;
         }
         else
