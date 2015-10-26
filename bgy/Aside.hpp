@@ -334,8 +334,8 @@ public:
 private:
     static void init()
     {
-        static int done = 0;
-        static bool check = false;
+        static volatile int done = 0;
+        static volatile bool check = false;
         if (__sync_fetch_and_add(&done, 1) == 0)
         {
             CURLcode code = curl_global_init(CURL_GLOBAL_ALL);
@@ -364,8 +364,8 @@ private:
 
     static void destroy()
     {
-        static int done = 0;
-        static bool check = false;
+        static volatile int done = 0;
+        static volatile bool check = false;
         if (__sync_fetch_and_add(&done, 1) == 0)
         {
             curl_global_cleanup();
@@ -522,14 +522,14 @@ inline MD5Stream& operator>>(MD5Stream& stream, char* str)
 
 namespace {
 // 确保 sizoef(char) == sizeof(std::string::value_type) == 1
-template<int Size> class HttpCheckSize;
-template<> class HttpCheckSize<1> { public: typedef int check_type; };
-typedef HttpCheckSize<sizeof(char)>::check_type HttpCheckSizeTypedef;
-typedef HttpCheckSize<sizeof(std::string::value_type)>::check_type HttpCheckSizeTypedef;
+template<int Size> class BgyCheckSize;
+template<> class BgyCheckSize<1> { public: typedef int check_type; };
+typedef BgyCheckSize<sizeof(char)>::check_type BgyCheckSizeTypedef;
+typedef BgyCheckSize<sizeof(std::string::value_type)>::check_type BgyCheckSizeTypedef;
 // 确保 unsigned char 与 uint8_t 是同一类型
-template<typename T> class HttpCheckType;
-template<> class HttpCheckType<unsigned char> { public: typedef int check_type; };
-typedef HttpCheckType<uint8_t>::check_type HttpCheckTypeTypedef;
+template<typename T> class BgyCheckType;
+template<> class BgyCheckType<unsigned char> { public: typedef int check_type; };
+typedef BgyCheckType<uint8_t>::check_type BgyCheckTypeTypedef;
 }
 
 }

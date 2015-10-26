@@ -65,37 +65,51 @@ public:
         signKey(BGY_SIGN_KEY), signHyphen(BGY_SIGN_HYPHEN)
     {}
 
-    void setSecret(const std::string& _secret)
+    // return true on succeed, false on failed.
+    bool setSecret(const std::string& _secret)
     {
-        secret = _secret;
+        if (secret == _secret) { return true; }
+
+        static volatile int done = 0;
+        if (__sync_fetch_and_add(&done, 1) == 0)
+        {
+            secret = _secret;
+            done = 0;
+            return true;
+        }
+        else
+        {
+            __sync_sub_and_fetch(&done, 1);
+            return false;
+        }
     }
 
-    Response get(const std::string& url)
+    Response get(const std::string& url) const
     {
         return request(url, GET, StrPairList());
     }
 
-    Response get(const std::string& url, const StrPairList& params)
+    Response get(const std::string& url, const StrPairList& params) const
     {
         return request(url, GET, params);
     }
 
-    Response post(const std::string& url)
+    Response post(const std::string& url) const
     {
         return request(url, POST, StrPairList());
     }
 
-    Response post(const std::string& url, const StrPairList& params)
+    Response post(const std::string& url, const StrPairList& params) const
     {
         return request(url, POST, params);
     }
 
-    Response post(const std::string& url, const StrPairList& params, const StrPairList& uploads)
+    Response post(const std::string& url, const StrPairList& params, const StrPairList& uploads) const
     {
         return request(Request(url, params, uploads));
     }
 
-    Response request(const std::string& url, HttpMethod method, const StrPairList& params)
+    Response request(const std::string& url, HttpMethod method, const StrPairList& params) const
     {
         return request(Request(url, method, params));
     }
