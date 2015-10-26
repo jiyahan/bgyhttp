@@ -95,8 +95,8 @@ int main(int argc, char* argv[])
         BGY_DUMP(response.isHtml());        // http头 Content-Type == "text/html"。
         BGY_DUMP(response.isJson());        // http头 Content-Type in ("application/json", "text/json")。
         BGY_DUMP(response.isUtf8());        // charset() == "utf-8"。
-        BGY_DUMP(response.contentLength()); // http头中的 Content-Length 值，-1 表示如果没有设定。
-        BGY_DUMP(response.content().size());    // 真实的http正文长度。
+        BGY_DUMP(response.contentLength()); // http头中的 Content-Length 值，-1 表示没有设定。
+        BGY_DUMP(response.content().size());    // 实际接收到的 http正文 长度。
     }
     std::cout << std::string(80, '-') << std::endl << std::endl << std::endl;   // */
 
