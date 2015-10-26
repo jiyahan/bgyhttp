@@ -30,6 +30,9 @@ extern "C" {
 #define _FILE_TXT "/tmp/a.txt"
 #define _FILE_IMG "/tmp/b.jpg"
 
+// 签名用的密钥，与服务器端保持一致，每台设备都不一样。
+#define BGY_SECRET                   "FJDFf*e^fegffdh&^gfbvoi&*jf|{{kdm(9"
+
 int main(int argc, char* argv[])
 {
     extern void prepare(int, char*[]);
@@ -42,6 +45,8 @@ int main(int argc, char* argv[])
     bgy::CurlScope bgyCurlScope;    // 保证这个变量不被析构，直到所有 CURL 操作全部做完。
 
     bgy::Client client;     // 线程安全。建议一次构造、重复利用。
+    client.setSecret("FJDFf*e^fegffdh&^gfbvoi&*jf|{{kdm(9");    // 设置 签名用的密钥，与服务器端保持一致，每台设备都不一样。
+    // bgy::Client client("FJDFf*e^fegffdh&^gfbvoi&*jf|{{kdm(9");    // 构造时传入 secret 也可以。
 
     //* 演示 Request/Response 的用法: 先构造<Request>；然后用<Client>.request(<Request>)发送，并接收<Response>。
     {

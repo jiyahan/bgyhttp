@@ -1,12 +1,6 @@
 
 #pragma once
 
-
-// 签名用的密钥，与服务器端保持一致，每台设备都不一样。
-#ifndef BGY_SECRET
-#   define BGY_SECRET                   "FJDFf*e^fegffdh&^gfbvoi&*jf|{{kdm(9"
-#endif
-
 // 通信协议版本号:
 #ifndef BGY_PROTOCOL_VERSION_MAJOR
 #   define BGY_PROTOCOL_VERSION_MAJOR   0        // 主版本号

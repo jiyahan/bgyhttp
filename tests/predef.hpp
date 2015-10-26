@@ -5,10 +5,6 @@
 
 #pragma once
 
-
-// 签名用的密钥，与服务器端保持一致，每台设备都不一样。
-#define BGY_SECRET                   "FJDFf*e^fegffdh&^gfbvoi&*jf|{{kdm(9"
-
 // convention
 #define BGY_PROTOCOL_VERSION_MAJOR   0        // 主版本号
 #define BGY_PROTOCOL_VERSION_MINOR   1        // 分支版本号
