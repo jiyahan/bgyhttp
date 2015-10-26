@@ -20,5 +20,5 @@
 #define BGY_SIGN_KEY                 "sign"     // 签名参数 键名
 #define BGY_URL_MAX_LENGTH           4096       // URL 最大长度
 #define BGY_SIGN_HYPHEN              "|"        // 签名字符片段连接符
-#define BGY_RESPONSE_MAX_CONTENT_LENGTH     INT_MAX     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
+#define BGY_RESPONSE_MAX_CONTENT_LENGTH     0x7fffffff     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
 #define BGY_FREAD_BUFFER_SIZE        4096       // 读文件时 buffer 字节数（NOTE：栈上分配）

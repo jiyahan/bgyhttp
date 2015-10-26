@@ -403,7 +403,7 @@ private:
         return qs;
     }
 
-    static size_t contentHandler(void* ptr, size_t size, size_t nmember, void* _chp)
+    static std::size_t contentHandler(void* ptr, std::size_t size, std::size_t nmember, void* _chp)
     {
         CurlHandlerParam* chp = static_cast<CurlHandlerParam*>(_chp);
         if (BGY_UNLIKELY(chp->canceled)) { return 0; }
@@ -418,10 +418,10 @@ private:
                 return 0;
             }
         }
-        if (resp.contentLengthSpecified() && static_cast<int64_t>(
-            resp.content().size()) >= resp.contentLength()) { return 0; }
+        const std::size_t length = size * nmember;
+        if (BGY_UNLIKELY(resp.contentLengthSpecified() && static_cast<int64_t>(
+            resp.content().size() + length) > resp.contentLength())) { return 0; }
 
-        const size_t length = size * nmember;
         resp.appendContent(static_cast<char*>(ptr), length);
         return length;
     }

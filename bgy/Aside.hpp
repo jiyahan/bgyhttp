@@ -163,7 +163,7 @@ public:
         return res;
     }
 
-    static std::string toLowerCase(const char* str, size_t len)
+    static std::string toLowerCase(const char* str, std::size_t len)
     {
         std::string res;
         res.resize(len);
