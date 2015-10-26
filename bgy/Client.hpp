@@ -444,7 +444,7 @@ private:
 
     std::size_t calcEncodedMaxSize(const StrPtrPairList& paramPtrs, bool sign) const
     {
-        std::size_t size = paramPtrs.size() * 2;    // = & 个数 + 结尾的 0
+        std::size_t size = paramPtrs.size() * 2;    // '=' '&' 个数 + 结尾的 '\0'
         if (sign)
         {
             size += signKey.size() * 3 + MD5Stream::RESULT_SIZE + 2;
