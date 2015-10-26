@@ -21,6 +21,6 @@
 posix:  
 $ cd bgy-http  
 $ make  
-$ ./request "http://119.254.1.6/fkwebserver/"
+$ ./request "http://www.baidu.com/"
     
 windows: 手工编译执行  
