@@ -393,8 +393,7 @@ class MD5Stream
     friend MD5Stream& operator>>(MD5Stream&, std::string&);
 private:
     MD5_CTX ctx;
-    bool finished;
-    bool ok;
+    bool finished, ok;
 
 public:
     enum { RESULT_SIZE = MD5_DIGEST_LENGTH << 1 };

@@ -372,7 +372,7 @@ private:
     SafeCharArray fillParams(const Request& req, std::size_t offset, bool& ok) const
     {
         StrPtrPairList paramPtrs = genPtrParams(req);
-        SafeCharArray qs(new char[std::min<std::size_t>(
+        SafeCharArray qs(new char[offset + std::min<std::size_t>(
             calcEncodedMaxSize(paramPtrs, !req.noSign), BGY_URL_MAX_LENGTH)]);
         char* cursor = qs.get();
         const char* const end = cursor + BGY_URL_MAX_LENGTH;
