@@ -13,10 +13,10 @@
 #endif
 
 #ifndef BGY_CONNECT_TIMEOUT
-#   define BGY_CONNECT_TIMEOUT          10              // curl连接超时时间（秒）
+#   define BGY_CONNECT_TIMEOUT          10U              // curl连接超时时间（秒）
 #endif
 #ifndef BGY_REQUEST_TIMEOUT
-#   define BGY_REQUEST_TIMEOUT          60              // curl请求超时时间（秒）
+#   define BGY_REQUEST_TIMEOUT          60U              // curl请求超时时间（秒）
 #endif
 
 #ifndef BGY_USER_AGENT
@@ -32,7 +32,7 @@
 #endif
 
 #ifndef BGY_URL_MAX_LENGTH
-#   define BGY_URL_MAX_LENGTH           4096       // URL 最大长度
+#   define BGY_URL_MAX_LENGTH           4096U      // URL 最大长度
 #endif
 
 #ifndef BGY_SIGN_HYPHEN
@@ -40,14 +40,18 @@
 #endif
 
 #ifndef BGY_RESPONSE_MAX_CONTENT_LENGTH
+#   ifdef __unix__
 extern "C" {
-#   include <limits.h>     // for INT_MAX
+#       include <limits.h>     // for INT_MAX
 }
-#   define BGY_RESPONSE_MAX_CONTENT_LENGTH     INT_MAX     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
+#       define BGY_RESPONSE_MAX_CONTENT_LENGTH     INT_MAX     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
+#   else
+#       define BGY_RESPONSE_MAX_CONTENT_LENGTH     0x7fffffffL
+#   endif
 #endif
 
 #ifndef BGY_FREAD_BUFFER_SIZE
-#   define BGY_FREAD_BUFFER_SIZE        4096       // 读文件时 buffer 字节数（NOTE：栈上分配）
+#   define BGY_FREAD_BUFFER_SIZE        4096U      // 读文件时 buffer 字节数（NOTE：栈上分配）
 #endif
 
 
