@@ -55,8 +55,8 @@ private:
     std::string userAgent, protoVersionKey, protoVersion, signKey, signHyphen;
 
 public:
-    Client():
-        secret(BGY_SECRET),
+    explicit Client(const std::string& _secret = std::string()):
+        secret(_secret),
         followLocation(true),   // 是否跟随重定向
         connectTimeout(BGY_CONNECT_TIMEOUT),
         timeout(BGY_REQUEST_TIMEOUT),
@@ -65,6 +65,11 @@ public:
         protoVersion(BGY_PROTOCOL_VERSION),
         signKey(BGY_SIGN_KEY), signHyphen(BGY_SIGN_HYPHEN)
     {}
+
+    void setSecret(const std::string& _secret)
+    {
+        secret = _secret;
+    }
 
     Response get(const std::string& url)
     {
