@@ -14,7 +14,7 @@ extern "C" {
 #ifdef NDEBUG
 #   define _BGY_CURL_CALL(call, ...)                                                        \
     do {                                                                                    \
-        if (BGY_UNLIKELY(call != CURLE_OK))                                                               \
+        if (BGY_UNLIKELY(call != CURLE_OK))                                                 \
         {                                                                                   \
             BGY_ERR(BGY_STRINGIZE(call));                                                   \
             __VA_ARGS__;                                                                    \
@@ -24,7 +24,7 @@ extern "C" {
 #   define _BGY_CURL_CALL(call, ...)                                                        \
     do {                                                                                    \
         CURLcode code = call;                                                               \
-        if (BGY_UNLIKELY(code != CURLE_OK))                                                               \
+        if (BGY_UNLIKELY(code != CURLE_OK))                                                 \
         {                                                                                   \
             BGY_ERR(BGY_STRINGIZE(call) << "=" << code                                      \
                 << ": " << curl_easy_strerror(code));                                       \
