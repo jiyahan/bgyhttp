@@ -84,8 +84,6 @@ public:
         return *this;
     }
 
-    virtual ~Request() {}
-
 private:
     bool noClean;        // 请求结束后不做 curl_easy_cleanup(curl);
 
@@ -99,10 +97,6 @@ private:
 
 public:
     const bool queryStringBegan;
-
-private:  // non-copyable
-    Request(const Request&);
-    Request& operator=(const Request&);
 };
 
 }
