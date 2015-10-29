@@ -276,6 +276,27 @@ public:
         std::memcpy(dest, src, len);
         dest += len;
     }
+
+    static std::size_t unitCeil(std::size_t len) BGY_PRAGMA_ATTR(const)
+    {
+#if defined(BGY_UNIT_ALLOC)
+        return unitCeil(len, BGY_ALLOC_UNIT);
+#else
+        return len;
+#endif
+    }
+
+    static std::size_t kceil(std::size_t len) BGY_PRAGMA_ATTR(const)
+    {
+        return (len & ((1 << 10) - 1)) == 0 ? len :
+            (((len & ((0xffffffffffffffffUL >> 10) << 10)) == ((0xffffffffffffffffUL >> 10) << 10)) ?
+            len : ((len & ((0xffffffffffffffffUL >> 10) << 10)) + (1 << 10)));
+    }
+
+    static std::size_t unitCeil(std::size_t len, std::size_t unit) BGY_PRAGMA_ATTR(const)
+    {
+        return std::max((len % unit == 0) ? len : (static_cast<std::size_t>(len / unit) * unit), len);
+    }
 };
 
 

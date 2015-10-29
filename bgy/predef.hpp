@@ -50,6 +50,15 @@ extern "C" {
 #   endif
 #endif
 
+#if defined(BGY_UNIT_ALLOC) && BGY_UNIT_ALLOC
+#   ifndef BGY_ALLOC_UNIT
+#       define BGY_ALLOC_UNIT           4096U
+#   endif
+#   ifndef BGY_FREAD_BUFFER_SIZE
+#       define BGY_FREAD_BUFFER_SIZE    BGY_ALLOC_UNIT      // 读文件时 buffer 字节数（NOTE：栈上分配）
+#   endif
+#endif
+
 #ifndef BGY_FREAD_BUFFER_SIZE
 #   define BGY_FREAD_BUFFER_SIZE        4096U      // 读文件时 buffer 字节数（NOTE：栈上分配）
 #endif
@@ -98,7 +107,9 @@ extern "C" {
 #ifdef __GNUC__
 #   define BGY_LIKELY(cond)     __builtin_expect(cond, 1)
 #   define BGY_UNLIKELY(cond)   __builtin_expect(cond, 0)
+#   define BGY_PRAGMA_ATTR(attr)    __attribute__((attr))
 #else
 #   define BGY_LIKELY(cond)     cond
 #   define BGY_UNLIKELY(cond)   cond
+#   define BGY_PRAGMA_ATTR(attr)
 #endif

@@ -18,3 +18,5 @@
 #define BGY_SIGN_HYPHEN              "|"        // 签名字符片段连接符
 #define BGY_RESPONSE_MAX_CONTENT_LENGTH     0x7fffffffL     // http响应中 Content-Length 最大值，超过此值请求不会被处理。
 #define BGY_FREAD_BUFFER_SIZE        4096U      // 读文件时 buffer 字节数（NOTE：栈上分配）
+#define BGY_UNIT_ALLOC               1          // （处理 GET/POST 参数时）内存是否按 最小单元 分配
+#define BGY_ALLOC_UNIT               4096U      //                        内存分配 最小单元

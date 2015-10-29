@@ -193,7 +193,7 @@ private:
         }
         if (!prepareRes)
         {
-            BGY_ERR("failed on prepare request, http-method: " << req.method);
+            BGY_ERR("failed on prepare request, http-method: " << (req.method == GET ? "GET" : "POST"));
             return false;
         }
         if (perform)
@@ -372,8 +372,8 @@ private:
     SafeCharArray fillParams(const Request& req, std::size_t offset, bool& ok) const
     {
         StrPtrPairList paramPtrs = genPtrParams(req);
-        SafeCharArray qs(new char[offset + std::min<std::size_t>(
-            calcEncodedMaxSize(paramPtrs, !req.noSign), BGY_URL_MAX_LENGTH)]);
+        SafeCharArray qs(new char[Aside::unitCeil(offset + std::min<std::size_t>(
+            calcEncodedMaxSize(paramPtrs, !req.noSign), BGY_URL_MAX_LENGTH))]);
         char* cursor = qs.get();
         const char* const end = cursor + BGY_URL_MAX_LENGTH;
         cursor += offset;
@@ -481,7 +481,7 @@ private:
         double contentLength = 0;
         _BGY_CURL_CALL(curl_easy_getinfo(ch.get(), CURLINFO_CONTENT_LENGTH_DOWNLOAD, &contentLength),
             resp.setProcessFailed(); return false;);
-        if (contentLength > BGY_RESPONSE_MAX_CONTENT_LENGTH && resp.contentLengthSpecified())
+        if (contentLength > BGY_RESPONSE_MAX_CONTENT_LENGTH)
         {
             BGY_ERR("bad Content-Length: " << contentLength);
             return false;   // 取消后续回调
